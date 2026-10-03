@@ -12,6 +12,17 @@
   "reg_queries_per_run": 12,
   "max_alerts_per_run": 6,
   "alert_kinds": ["military", "xl", "livery", "watch"],
+  "remind_kinds": ["military", "livery", "watch"],
+
+  "schedule": {
+    "airports": ["JFK"],
+    "fetch_plan": [
+      { "hour": 7,  "day_offset": 0 },
+      { "hour": 20, "day_offset": 1 }
+    ],
+    "monthly_call_budget": 190,
+    "government_airline_pattern": "Amiri|Air Force|Special Flight|Government|Royal Flight|Presidential|Navy|Army"
+  },
 
   "magnetic_variation": -13,
   "airports": [
@@ -133,6 +144,7 @@
     "4X-EDF": "El Al 787-9 레트로 도장 'Rehovot'"
   },
 
-  "watch_types": {},
-  "watch_registrations": {}
+  "watch_types": { "A346": "추적 중" },
+  "watch_registrations": {},
+  "watch_flights": {}
 }

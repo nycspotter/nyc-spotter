@@ -137,6 +137,12 @@ tr.past td { opacity: .55; }
 .date-bar #d-prev, .date-bar #d-next { font-size: 20px; padding: 0; }
 .date-bar button:disabled { opacity: .4; cursor: default; }
 .date-bar input { padding: 0 10px; font-family: var(--mono); }
+.plan-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-bottom: 12px; }
+.plan-bar .filters { margin-bottom: 0; }
+.plan-bar input {
+  flex: 1 1 220px; min-width: 0; height: 36px; padding: 0 12px; border-radius: 8px;
+  border: 1px solid var(--line); background: var(--panel); color: var(--ink); font: 400 14px/1 var(--body);
+}
 .mode-note { font-size: 13px; color: var(--live); background: var(--live-bg); border-radius: 6px; padding: 8px 12px; margin-bottom: 10px; }
 
 /* runways & spots */
@@ -259,6 +265,13 @@ footer p { margin: 4px 0; max-width: 75ch; }
       <button type="button" data-k="arr" aria-pressed="false" data-t="arrivals"></button>
       <button type="button" data-k="dep" aria-pressed="false" data-t="departures"></button>
     </div>
+    <div class="plan-bar" id="plan-bar" hidden>
+      <div class="filters" id="plan-mode" role="group">
+        <button type="button" data-p="rare" aria-pressed="true" data-t="planRare"></button>
+        <button type="button" data-p="all" aria-pressed="false" data-t="planAll"></button>
+      </div>
+      <input type="search" id="plan-q" autocomplete="off" data-t-ph="planSearch">
+    </div>
     <div id="today"></div>
   </section>
 
@@ -287,6 +300,7 @@ footer p { margin: 4px 0; max-width: 75ch; }
 <footer>
   <p data-t="footer1"></p>
   <p><span data-t="dataLabel"></span> <a href="https://adsb.lol" target="_blank" rel="noopener">adsb.lol</a> (ODbL), <a href="https://adsb.fi" target="_blank" rel="noopener">adsb.fi</a>, <a href="https://www.adsbdb.com" target="_blank" rel="noopener">adsbdb</a>. <span data-t="footer2"></span></p>
+  <p><span data-t="scheduleLabel"></span> <a href="https://aerodatabox.com" target="_blank" rel="noopener">AeroDataBox</a>. <span id="usage"></span></p>
 </footer>
 
 <script>
@@ -296,6 +310,10 @@ const I18N = {
     todayTitle: "레어 스케줄", nyTime: "뉴욕 시간",
     todayBtn: "오늘로", prevDay: "이전 날", nextDay: "다음 날",
     futureNote: "학습된 정기편을 바탕으로 한 예상이에요(지금 시점 기록 기준). 실제 운항, 기종 변경, 지연은 반영되지 않아요.",
+    planNote: (ago) => `발표된 운항 스케줄 기준이에요(${ago} 갱신). 기종은 예정 기종이라 당일 바뀔 수 있어요.`,
+    planRare: "레어만", planAll: "전체 예정편", planSearch: "편명·기종·항공사·등록번호 검색 (예: A346, LH400)",
+    scheduled: "예정", fromTo: (ev, o) => o ? (ev === "arr" ? ` · ${o}발` : ` · ${o}행`) : "", revised: (t) => ` · 변경 ${t}`,
+    scheduleLabel: "예정 스케줄:", usage: (c, b) => `이번 달 조회 ${c}/${b}회`,
     futureEmpty: "이 날 예상되는 레어편이 없어요. 학습된 정기편이 적으면 비어 있을 수 있고, 기록이 쌓일수록 정확해져요.",
     all: "전체", arrivals: "도착", departures: "출발", filterLabel: "도착 출발 필터",
     groundTitle: "지금 공항에 있는 레어", groundSub: "출발 사진 찍을 기회",
@@ -346,6 +364,10 @@ const I18N = {
     todayTitle: "Rare movements", nyTime: "New York time",
     todayBtn: "Today", prevDay: "Previous day", nextDay: "Next day",
     futureNote: "A forecast from learned regular flights, as of now. Real operations, equipment swaps and delays aren't reflected.",
+    planNote: (ago) => `From the published schedule (updated ${ago}). Aircraft types are planned and can change on the day.`,
+    planRare: "Rare only", planAll: "All scheduled", planSearch: "Search flight, type, airline, reg (e.g. A346, LH400)",
+    scheduled: "Scheduled", fromTo: (ev, o) => o ? (ev === "arr" ? ` · from ${o}` : ` · to ${o}`) : "", revised: (t) => ` · now ${t}`,
+    scheduleLabel: "Schedules:", usage: (c, b) => `${c}/${b} lookups this month`,
     futureEmpty: "No rare flights expected that day. The forecast gets better as more days are logged.",
     all: "All", arrivals: "Arrivals", departures: "Departures", filterLabel: "Arrivals and departures filter",
     groundTitle: "On the ground now", groundSub: "your chance to catch the departure",
@@ -441,7 +463,11 @@ for (const [region, list] of Object.entries(AIRLINE_GROUPS)) {
 }
 const airlineCode = (cs) => (/^[A-Z]{3}[0-9A-Z]/.test(cs || "") ? cs.slice(0, 3) : "");
 const airlineName = (code) => code ? (AIRLINES[code] || code) : T().region.gov;
-const airlineCell = (x) => { const c = airlineCode(x.cs); return c ? `${esc(airlineName(c))}<span class="sub">${c}</span>` : `<span class="sub">${T().region.gov}</span>`; };
+const airlineCell = (x) => {
+  const c = airlineCode(x.cs);
+  const name = c && AIRLINES[c] ? AIRLINES[c] : (x.airline || (c ? c : T().region.gov));
+  return `${esc(name)}${c ? `<span class="sub">${c}</span>` : ""}`;
+};
 const airKey = (x) => airlineCode(x.cs) || "GOV";
 // private flights (N-number callsigns, bizjet operators) are hidden; military/government stays
 const regionOf = (x) => {
@@ -469,7 +495,7 @@ const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "
 const hm = (m) => { m = ((m % 1440) + 1440) % 1440; return String(Math.floor(m / 60)).padStart(2, "0") + ":" + String(m % 60).padStart(2, "0"); };
 const nyTime = (ts) => new Date(ts * 1000).toLocaleString(T().locale, { timeZone: "America/New_York", month: T().dateMonth, day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false });
 const tagsHtml = (kinds) => `<span class="tags">${(kinds || []).map((k) => `<span class="tag ${esc(k)}">${T().tag[k] || esc(k)}</span>`).join("")}</span>`;
-const typeCell = (x) => `<b class="mono">${esc(x.type || "?")}</b> ${tagsHtml(x.kinds)}<span class="sub">${esc(TYPE_NAME[x.type] || "")}</span>`;
+const typeCell = (x) => `<b class="mono">${esc(x.type || "—")}</b> ${tagsHtml(x.kinds)}<span class="sub">${esc(x.model || TYPE_NAME[x.type] || "")}</span>`;
 const thead = (cols) => `<thead><tr>${cols.map((c) => `<th>${c}</th>`).join("")}</tr></thead>`;
 function ago(ts) {
   const m = Math.round((Date.now() / 1000 - ts) / 60);
@@ -544,6 +570,11 @@ function stateText(s) {
   if (s.status === "airborne") return `<span class="state airborne">${esc(T().airborne(s.origin))}</span>`;
   if (s.status === "done") return `<span class="state done">${s.ev === "arr" ? T().landed : T().departed}${s.dest ? esc(T().forDest(s.dest)) : ""}</span>`;
   if (s.status === "unseen") return `<span class="state unseen">${T().unseen}</span>`;
+  if (s.source === "schedule") {
+    const rev = s.rmin != null && s.rmin !== s.min ? T().revised(hm(s.rmin)) : "";
+    const other = s.other || (s.ev === "arr" ? s.origin : s.dest);
+    return `<span class="state">${T().scheduled}${esc(T().fromTo(s.ev, other))}${rev}</span>`;
+  }
   return `<span class="state">${T().expected(s.days)}</span>`;
 }
 
@@ -553,6 +584,9 @@ function renderStatic() {
   $("filters").setAttribute("aria-label", T().filterLabel);
   document.querySelectorAll(".lang button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.lang === lang)));
   document.querySelectorAll("[data-t-aria]").forEach((el) => el.setAttribute("aria-label", T()[el.dataset.tAria]));
+  document.querySelectorAll("[data-t-ph]").forEach((el) => { el.placeholder = T()[el.dataset.tPh]; el.setAttribute("aria-label", T()[el.dataset.tPh]); });
+  const u = data && data.schedule_usage;
+  $("usage").textContent = u && u.budget ? T().usage(u.calls, u.budget) : "";
   if (!data) $("today-sub").textContent = T().nyTime;
 }
 
@@ -579,14 +613,49 @@ const addDays = (d, n) => { const t = new Date(d + "T12:00:00Z"); t.setUTCDate(t
 const dowOf = (d) => new Date(d + "T12:00:00Z").getUTCDay();
 const curDate = () => viewDate || data.date;
 
+// published schedule (AeroDataBox) for a date, keyed "JFK|2026-10-03" in data.planned
+let planMode = "rare", planQ = "";
+try { planMode = localStorage.getItem("spot-plan") === "all" ? "all" : "rare"; } catch (e) {}
+function plannedFor(d) {
+  const out = [];
+  let fetched = 0;
+  for (const [k, v] of Object.entries(data.planned || {})) {
+    const [ap, date] = k.split("|");
+    if (date !== d) continue;
+    fetched = Math.max(fetched, v.fetched || 0);
+    for (const f of v.flights || []) {
+      out.push({ ...f, ap, kinds: f.kinds || [], hex: null, status: "expected", source: "schedule",
+                 origin: f.ev === "arr" ? f.other : null, dest: f.ev === "dep" ? f.other : null });
+    }
+  }
+  return { flights: out.sort((a, b) => a.min - b.min), fetched };
+}
+const learnedFor = (d, skipAps) => {
+  const dow = dowOf(d);
+  return (data.patterns || [])
+    .filter((p) => (p.daily || (p.dows || []).includes(dow)) && !skipAps.has(p.ap))
+    .map((p) => ({ ...p, hex: null, status: "expected", source: "pattern" }));
+};
+const matchesQuery = (s) => !planQ || [s.num, s.cs, s.type, s.model, s.airline, s.reg, s.other, s.note]
+  .some((v) => v && String(v).toLowerCase().includes(planQ));
+
 function rowsForDate() {
   const d = curDate();
-  if (d === data.date) return { mode: "today", rows: data.today };
-  const dow = dowOf(d);
-  return { mode: "future", rows: (data.patterns || [])
-    .filter((p) => p.daily || (p.dows || []).includes(dow))
-    .map((p) => ({ ...p, hex: null, status: "expected", source: "pattern" }))
-    .sort((a, b) => a.min - b.min) };
+  const { flights, fetched } = plannedFor(d);
+  const hasPlan = flights.length > 0;
+  if (hasPlan && planMode === "all") {
+    // full published schedule; on today, live status (airborne/landed) overrides the plan
+    const live = d === data.date ? new Map(data.today.map((s) => [s.ev + "|" + s.ap + "|" + s.cs, s])) : new Map();
+    const rows = flights.map((p) => { const l = live.get(p.ev + "|" + p.ap + "|" + p.cs); return l ? { ...p, ...l, model: p.model, num: p.num } : p; });
+    return { mode: "plan", hasPlan, fetched, rows: rows.filter(matchesQuery) };
+  }
+  if (d === data.date) return { mode: "today", hasPlan, fetched, rows: data.today.filter(matchesQuery) };
+  if (hasPlan) {
+    const rare = flights.filter((p) => p.kinds.length);
+    const rows = [...rare, ...learnedFor(d, new Set(flights.map((p) => p.ap)))].sort((a, b) => a.min - b.min);
+    return { mode: "plan", hasPlan, fetched, rows: rows.filter(matchesQuery) };
+  }
+  return { mode: "future", hasPlan, fetched, rows: learnedFor(d, new Set()).sort((a, b) => a.min - b.min).filter(matchesQuery) };
 }
 
 function renderDateBar() {
@@ -612,8 +681,11 @@ function setViewDate(d) {
 function renderToday() {
   document.querySelectorAll("#filters button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.k === filter)));
   renderDateBar();
-  const { mode, rows: all } = rowsForDate();
-  const note = mode === "future" ? `<div class="mode-note">${T().futureNote}</div>` : "";
+  const { mode, rows: all, hasPlan, fetched } = rowsForDate();
+  $("plan-bar").hidden = !hasPlan;
+  document.querySelectorAll("#plan-mode button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.p === planMode)));
+  const note = mode === "future" ? `<div class="mode-note">${T().futureNote}</div>`
+    : mode === "plan" ? `<div class="mode-note">${T().planNote(ago(fetched))}</div>` : "";
   const rows = all.filter((s) => (filter === "all" || s.ev === filter) && passAir(s));
   if (!rows.length) {
     const empty = all.length ? T().noMatch : mode === "future" ? T().futureEmpty : T().todayEmpty;
@@ -624,7 +696,8 @@ function renderToday() {
     ${thead(T().thToday)}
     <tbody>${rows.map((s) => {
       const past = (s.status === "done" || s.status === "unseen");
-      const when = s.min >= 1440 ? T().tomorrow : s.status === "airborne" ? T().eta : s.status === "expected" ? T().usual : "";
+      const when = s.min >= 1440 ? T().tomorrow : s.status === "airborne" ? T().eta
+        : s.status === "expected" ? (s.source === "schedule" ? T().scheduled : T().usual) : "";
       return `<tr class="${past ? "past" : ""}">
         <td class="time c-time">${hm(s.min)}<span class="sub">${when}</span></td>
         <td class="c-ev"><span class="ev ${s.ev}">${T().ev[s.ev]}</span></td>
@@ -857,6 +930,15 @@ $("air-filters").addEventListener("click", (e) => {
   try { localStorage.setItem("spot-airlines", JSON.stringify([...airSel])); } catch (err) {}
   renderAll();
 });
+
+$("plan-mode").addEventListener("click", (e) => {
+  const b = e.target.closest("button");
+  if (!b) return;
+  planMode = b.dataset.p;
+  try { localStorage.setItem("spot-plan", planMode); } catch (err) {}
+  renderToday();
+});
+$("plan-q").addEventListener("input", (e) => { planQ = e.target.value.trim().toLowerCase(); renderToday(); });
 
 $("d-prev").addEventListener("click", () => data && setViewDate(addDays(curDate(), -1)));
 $("d-next").addEventListener("click", () => data && setViewDate(addDays(curDate(), 1)));

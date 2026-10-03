@@ -64,6 +64,7 @@ $milCalls   = Get-Map $cfg.military_callsign_prefixes
 $liveries   = Get-Map $cfg.special_liveries
 $watchTypes = Get-Map $cfg.watch_types
 $watchRegs  = Get-Map $cfg.watch_registrations
+$watchFlights = Get-Map $cfg.watch_flights
 $alertKinds = @($cfg.alert_kinds)
 $airports   = @{}
 foreach ($ap in $cfg.airports) { $airports[$ap.code] = $ap }
@@ -164,7 +165,7 @@ function Add-Event($ev, $ap, $i, $cs, [long]$ts) {
 
 $kindLabel = @{ military = 'MIL/GOV'; xl = 'XL'; livery = 'LIVERY'; watch = 'WATCH' }
 function Get-KindText($kinds) { (@($kinds | ForEach-Object { $kindLabel[$_] }) -join '/') }
-function Get-NoteText($tags) { (@($tags | Where-Object { $_.note } | ForEach-Object { $_.note }) -join ', ') }
+function Get-NoteText($tags) { (@($tags | Where-Object { $_.note } | ForEach-Object { "$($_.note)" } | Select-Object -Unique) -join ', ') }
 function Add-Alert($key, $kinds, $title, $body, $click) {
   if ($state.alerted.ContainsKey($key)) { return }
   if ($null -ne $kinds -and @($kinds | Where-Object { $alertKinds -contains $_ }).Count -eq 0) { return }
@@ -366,6 +367,116 @@ foreach ($ap in $cfg.airports) {
   }
 }
 
+# ---------- planned schedule from AeroDataBox (needs the AERODATABOX_KEY secret) ----------
+# Fetches each airport's full day of scheduled arrivals/departures (two 12-hour windows = 2 calls),
+# flags the rare ones and sends a "today/tomorrow at JFK" summary. Calls are counted per month.
+$sc   = $cfg.schedule
+$plan = Read-Data 'planned.json'
+foreach ($k in 'days', 'slots', 'usage') { if ($null -eq $plan[$k]) { $plan[$k] = @{} } }
+$monthKey = $ny.ToString('yyyy-MM', $inv)
+if ($null -eq $plan.usage[$monthKey]) { $plan.usage[$monthKey] = 0 }
+
+# AeroDataBox gives a model name ("Airbus A340-600"); map it to ICAO type codes. Order matters.
+$typeFromModel = @(
+  @('A380', 'A388'), @('747-8', 'B748'), @('747-4\d*LCF|Dreamlifter', 'BLCF'), @('747-4', 'B744'), @('747-2', 'B742'),
+  @('747SP', 'B74S'), @('A340-6', 'A346'), @('A340-5', 'A345'), @('A340-3', 'A343'), @('A340-2', 'A342'),
+  @('An-?124', 'A124'), @('An-?225', 'A225'), @('Beluga ?XL', 'A337'), @('Beluga|A300-600ST', 'A3ST'),
+  @('MD-11', 'MD11'), @('DC-10', 'DC10'), @('Il-?96', 'IL96'), @('Il-?76', 'IL76'), @('C-17', 'C17'), @('C-5', 'C5M'),
+  @('777-?F|777-2\d*LR|777 Freighter', 'B77L'), @('777-3', 'B77W'), @('777-2', 'B772'), @('787-10', 'B78X'),
+  @('787-9', 'B789'), @('787-8', 'B788'), @('A350-1000', 'A35K'), @('A350', 'A359'), @('A330-9', 'A339'),
+  @('A330-3', 'A333'), @('A330-2', 'A332'), @('767-4', 'B764'), @('767-3', 'B763'), @('757-2', 'B752'),
+  @('A321', 'A321'), @('A320', 'A320'), @('A220-3', 'BCS3'), @('737', 'B738'))
+function Get-TypeFromModel($model) {
+  foreach ($p in $typeFromModel) { if ("$model" -match $p[0]) { return $p[1] } }
+  return ''
+}
+
+function Get-Fids($code, $date) {
+  $items = New-Object System.Collections.ArrayList
+  foreach ($w in @(@('00:00', '11:59'), @('12:00', '23:59'))) {
+    if ([int]$plan.usage[$monthKey] -ge [int]$sc.monthly_call_budget) { Write-Warning 'AeroDataBox monthly call budget reached'; return $null }
+    $plan.usage[$monthKey] = [int]$plan.usage[$monthKey] + 1
+    $url = "https://aerodatabox.p.rapidapi.com/flights/airports/iata/$code/${date}T$($w[0])/${date}T$($w[1])" +
+           '?withLeg=true&direction=Both&withCancelled=false&withCodeshared=false&withCargo=true&withPrivate=false&withLocation=false'
+    try {
+      $res = Invoke-RestMethod -Uri $url -TimeoutSec 30 -Headers @{ 'X-RapidAPI-Key' = $env:AERODATABOX_KEY; 'X-RapidAPI-Host' = 'aerodatabox.p.rapidapi.com' }
+    } catch { Write-Warning "AeroDataBox $code $date failed: $($_.Exception.Message)"; return $null }
+    Start-Sleep -Milliseconds 1200
+    foreach ($dir in 'arrivals', 'departures') {
+      foreach ($f in @($res.$dir)) {
+        if (-not $f) { continue }
+        $here  = if ($dir -eq 'arrivals') { $f.arrival } else { $f.departure }
+        $there = if ($dir -eq 'arrivals') { $f.departure } else { $f.arrival }
+        if ("$($here.scheduledTime.local)" -notmatch '^(\d{4}-\d{2}-\d{2})[ T](\d{2}):(\d{2})') { continue }
+        $min = [int]$Matches[2] * 60 + [int]$Matches[3]
+        $rmin = $null
+        if ("$($here.revisedTime.local)" -match '^\d{4}-\d{2}-\d{2}[ T](\d{2}):(\d{2})') { $rmin = [int]$Matches[1] * 60 + [int]$Matches[2] }
+        $num = "$($f.number)".Trim()
+        $cs  = "$($f.callSign)".Replace(' ', '').ToUpper()
+        if (-not $cs -and $f.airline.icao -and $num -match '(\d+[A-Z]?)$') { $cs = "$($f.airline.icao)$($Matches[1])".ToUpper() }
+        $model = "$($f.aircraft.model)"
+        $type  = Get-TypeFromModel $model
+        $reg   = "$($f.aircraft.reg)".ToUpper()
+        $tags  = Get-Tags $cs $reg $type 0
+        $airline = "$($f.airline.name)"
+        if ($sc.government_airline_pattern -and $airline -match $sc.government_airline_pattern -and -not ($tags | Where-Object { $_.kind -eq 'military' })) {
+          $tags += [ordered]@{ kind = 'military'; note = $airline }
+        }
+        $numKey = $num.Replace(' ', '').ToUpper()
+        $wf = if ($watchFlights.ContainsKey($numKey)) { $watchFlights[$numKey] } elseif ($cs -and $watchFlights.ContainsKey($cs)) { $watchFlights[$cs] } else { $null }
+        if ($null -ne $wf -and -not ($tags | Where-Object { $_.kind -eq 'watch' })) { $tags += [ordered]@{ kind = 'watch'; note = "$wf" } }
+        [void]$items.Add([ordered]@{
+          ev = $(if ($dir -eq 'arrivals') { 'arr' } else { 'dep' }); min = $min; rmin = $rmin
+          num = $num; cs = $cs; airline = $airline; type = $type; model = $model; reg = $reg
+          other = "$($there.airport.iata)"; kinds = @($tags | ForEach-Object { $_.kind })
+          note = (Get-NoteText $tags)
+        })
+      }
+    }
+  }
+  return ,@($items | Sort-Object { [int]$_.min })
+}
+
+function Send-PlanDigest($code, $date, $flights, $label) {
+  $rare = @($flights | Where-Object { @($_.kinds).Count -gt 0 })
+  if ($rare.Count -eq 0) { return }
+  $lines = $rare | Select-Object -First 15 | ForEach-Object {
+    "$(Format-Hm $_.min) $(if ($_.ev -eq 'arr') { "도착 $($_.other)발" } else { "출발 $($_.other)행" }) $($_.num) $(if ($_.type) { $_.type } else { $_.model })$(if ($_.note) { " · $($_.note)" })"
+  }
+  $more = if ($rare.Count -gt 15) { "`n… 외 $($rare.Count - 15)편은 사이트에서" } else { '' }
+  Add-Alert "plan|$code|$date|$label" $null "[PLAN] $code $date rare $($rare.Count)" "$label $code 레어 $($rare.Count)편`n$($lines -join "`n")$more" $null
+}
+
+if ($sc -and $env:AERODATABOX_KEY) {
+  $todayStr = $ny.ToString('yyyy-MM-dd', $inv)
+  foreach ($code in @($sc.airports)) {
+    $jobs = @()
+    foreach ($slot in @($sc.fetch_plan)) {
+      $slotKey = "$code|$todayStr|$($slot.hour)"
+      if ($ny.Hour -ge [int]$slot.hour -and -not $plan.slots.ContainsKey($slotKey)) { $jobs += @{ key = $slotKey; offset = [int]$slot.day_offset } }
+    }
+    # first run of the day without data: fetch today right away
+    if (-not $plan.days.ContainsKey("$code|$todayStr") -and -not ($jobs | Where-Object { $_.offset -eq 0 })) {
+      $jobs += @{ key = "$code|$todayStr|boot"; offset = 0 }
+    }
+    foreach ($job in $jobs) {
+      # after a failed fetch, wait an hour before trying that slot again
+      $failKey = "fail|$($job.key)"
+      if ($plan.slots.ContainsKey($failKey) -and ($now - [long]$plan.slots[$failKey]) -lt 3600) { continue }
+      $date = $ny.AddDays($job.offset).ToString('yyyy-MM-dd', $inv)
+      $flights = Get-Fids $code $date
+      if ($null -eq $flights) { $plan.slots[$failKey] = $now; continue }
+      $plan.slots[$job.key] = $now
+      $plan.days["$code|$date"] = [ordered]@{ fetched = $now; flights = $flights }
+      Send-PlanDigest $code $date $flights $(if ($job.offset -eq 0) { '오늘' } else { '내일' })
+    }
+  }
+}
+# keep yesterday onward; slot markers for a few days
+$yesterday = $ny.AddDays(-1).ToString('yyyy-MM-dd', $inv)
+foreach ($k in @($plan.days.Keys))  { if (($k -split '\|')[1] -lt $yesterday) { $plan.days.Remove($k) } }
+foreach ($k in @($plan.slots.Keys)) { if ($now - [long]$plan.slots[$k] -gt 3 * 86400) { $plan.slots.Remove($k) } }
+
 # ---------- 3. learn recurring flights ----------
 $keep = $now - 30 * 86400
 $events = [System.Collections.ArrayList]@($events | Where-Object { [long]$_.ts -ge $keep } | Sort-Object { [long]$_.ts })
@@ -420,8 +531,20 @@ function New-Sched($ev, $ap, $x, $min, $status, $source) {
   [void]$sched.Add($s)
   return $s
 }
+# rare flights from today's published schedule come first; learned patterns only fill gaps
+$todayStr = $ny.ToString('yyyy-MM-dd', $inv)
+foreach ($code in @($sc.airports)) {
+  $d = $plan.days["$code|$todayStr"]
+  if (-not $d) { continue }
+  foreach ($it in @($d.flights)) {
+    if (@($it.kinds).Count -eq 0 -or (Find-Sched $it.ev $code $it.cs)) { continue }
+    $s = New-Sched $it.ev $code $it ([int]$it.min) 'expected' 'schedule'
+    $s.hex = $null; $s.model = $it.model; $s.num = $it.num; $s.rmin = $it.rmin; $s.airline = $it.airline
+    if ($it.ev -eq 'arr') { $s.origin = $it.other } else { $s.dest = $it.other }
+  }
+}
 foreach ($p in $patterns) {
-  if (-not $p.today) { continue }
+  if (-not $p.today -or (Find-Sched $p.ev $p.ap $p.cs $p.type $p.min)) { continue }
   $s = New-Sched $p.ev $p.ap $p ([int]$p.min) 'expected' 'pattern'
   $s.hex = $null; $s.days = $p.days; $s.daily = $p.daily
 }
@@ -473,8 +596,10 @@ foreach ($l in $landed) {
 }
 
 $remind = [int]$cfg.remind_before_min
+$remindKinds = @($cfg.remind_kinds)
 foreach ($s in $schedSorted) {
   if ($s.status -ne 'expected') { continue }
+  if (@($s.kinds | Where-Object { $remindKinds -contains $_ }).Count -eq 0) { continue }
   $until = $s.min - $nowMin
   if ($until -le 0 -or $until -gt $remind) { continue }
   $evKo = if ($s.ev -eq 'arr') { '도착' } else { '출발' }
@@ -483,7 +608,8 @@ foreach ($s in $schedSorted) {
     "약 ${until}분 후 $($s.ap) $evKo 예상 · 편명 $($s.cs)`n최근 $($s.days)일 관측 기준 예상 시간이에요" $null
 }
 
-if ($nowMin -ge [int]$cfg.digest_hour * 60 -and $state.digest_day -ne $today) {
+# learned-pattern digest is only needed when there's no published schedule
+if (-not $env:AERODATABOX_KEY -and $nowMin -ge [int]$cfg.digest_hour * 60 -and $state.digest_day -ne $today) {
   $state.digest_day = $today
   $items = @($schedSorted | Where-Object { $_.source -eq 'pattern' -or $_.status -eq 'airborne' })
   if ($items.Count -gt 0) {
@@ -522,7 +648,10 @@ Write-Data 'schedule.json' ([ordered]@{
   runways  = $runways
   patterns = @($patterns | Sort-Object { [int]$_.min })
   recent   = @($events | Sort-Object { [long]$_.ts } -Descending | Select-Object -First 40)
+  planned  = $plan.days
+  schedule_usage = [ordered]@{ month = $monthKey; calls = [int]$plan.usage[$monthKey]; budget = [int]$sc.monthly_call_budget }
 })
+Write-Data 'planned.json' $plan
 
 Write-Host ("{0}: world rare {1} (to NYC {2}, from NYC {3}), local {4}, on ground {5}, new events {6}, patterns {7}, today {8}, alerts {9}, route lookups {10}" -f
   $feed.source, $worldAc.Count, $inbound.Count, $outbound.Count, $feed.list.Count, $ground.Count, $newEvents.Count, $patterns.Count, $schedSorted.Count, $alerts.Count, $script:lookups)
