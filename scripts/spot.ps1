@@ -95,6 +95,8 @@ function Get-Tags($callsign, $reg, $type, $dbFlags) {
   foreach ($prefix in $milCalls.Keys) {
     if ($callsign -and $callsign.StartsWith($prefix)) { $isMil = $true; $milNote = $milCalls[$prefix]; break }
   }
+  # the ADS-B database's "military" flag also covers state/VIP aircraft (e.g. Qatar Amiri Flight)
+  if ($isMil -and -not $milNote) { $milNote = '군·정부 등록 기체 (DB 표시)' }
   if ($isMil) { $tags += [ordered]@{ kind = 'military'; note = $milNote } }
   if ($type -and $xlTypes.ContainsKey($type))  { $tags += [ordered]@{ kind = 'xl';     note = $xlTypes[$type] } }
   if ($reg -and $liveries.ContainsKey($reg))   { $tags += [ordered]@{ kind = 'livery'; note = $liveries[$reg] } }
@@ -160,7 +162,7 @@ function Add-Event($ev, $ap, $i, $cs, [long]$ts) {
   return $e
 }
 
-$kindLabel = @{ military = 'MIL'; xl = 'XL'; livery = 'LIVERY'; watch = 'WATCH' }
+$kindLabel = @{ military = 'MIL/GOV'; xl = 'XL'; livery = 'LIVERY'; watch = 'WATCH' }
 function Get-KindText($kinds) { (@($kinds | ForEach-Object { $kindLabel[$_] }) -join '/') }
 function Get-NoteText($tags) { (@($tags | Where-Object { $_.note } | ForEach-Object { $_.note }) -join ', ') }
 function Add-Alert($key, $kinds, $title, $body, $click) {
@@ -315,7 +317,7 @@ foreach ($a in $feed.list) {
     }
     if ($i.kinds -contains 'military' -and $dist -le $cfg.overhead_radius_nm -and $null -ne $i.alt -and $i.alt -le $cfg.overhead_max_alt_ft) {
       $where = if ($atAp) { "at $near" } else { 'over NYC' }
-      Add-Alert "mil|$($i.hex)|$today" @('military') "[MIL] $($i.type) $($i.cs) $where" `
+      Add-Alert "mil|$($i.hex)|$today" @('military') "[MIL/GOV] $($i.type) $($i.cs) $where" `
         "지금 $(if ($atAp) { "$near 부근" } else { 'NYC 상공' }) $($i.alt) ft`n$(Get-NoteText $i.tags)" "$globe$($i.hex)"
     }
     $state.last[$i.hex] = @{ ap = $(if ($atAp) { $near } else { $null }); gnd = $false; ts = $now; cs = $i.cs }
