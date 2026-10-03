@@ -10,6 +10,7 @@ on:
 permissions:
   contents: write   # force-push the data branch
   pages: write      # deploy the site
+  issues: read      # watchlist comes from issues titled "watch ..."
   id-token: write
 
 concurrency:
@@ -41,6 +42,7 @@ jobs:
         env:
           NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
           AERODATABOX_KEY: ${{ secrets.AERODATABOX_KEY }}
+          GITHUB_TOKEN: ${{ github.token }}
         run: ./scripts/spot.ps1
 
       # Save data as a single fresh commit on the data branch, so history never piles up.

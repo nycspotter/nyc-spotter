@@ -65,6 +65,26 @@ $liveries   = Get-Map $cfg.special_liveries
 $watchTypes = Get-Map $cfg.watch_types
 $watchRegs  = Get-Map $cfg.watch_registrations
 $watchFlights = Get-Map $cfg.watch_flights
+
+# Watchlist from open GitHub issues titled "watch flight LH400" / "watch type A346" / "watch reg D-AIHW".
+# The site's ☆ buttons open a pre-filled issue; closing the issue removes the item.
+$issueWatch = New-Object System.Collections.ArrayList
+if ($env:GITHUB_TOKEN -and $env:GITHUB_REPOSITORY) {
+  try {
+    $issues = Invoke-RestMethod -Uri "https://api.github.com/repos/$($env:GITHUB_REPOSITORY)/issues?state=open&per_page=100" -TimeoutSec 20 `
+      -Headers @{ Authorization = "Bearer $($env:GITHUB_TOKEN)"; Accept = 'application/vnd.github+json'; 'User-Agent' = 'nyc-spotter-board' }
+    foreach ($is in $issues) {
+      if ($is.pull_request -or "$($is.title)" -notmatch '^\s*watch\s+(flight|type|reg)\s+(\S+)') { continue }
+      $kind = $Matches[1].ToLower(); $val = $Matches[2].ToUpper()
+      switch ($kind) {
+        'flight' { $watchFlights[$val] = '⭐ 관심 편' }
+        'type'   { $watchTypes[$val]   = '⭐ 관심 기종' }
+        'reg'    { $watchRegs[$val]    = '⭐ 관심 기체' }
+      }
+      [void]$issueWatch.Add([ordered]@{ kind = $kind; value = $val; url = "$($is.html_url)" })
+    }
+  } catch { Write-Warning "GitHub issues watchlist failed: $($_.Exception.Message)" }
+}
 $alertKinds = @($cfg.alert_kinds)
 $airports   = @{}
 foreach ($ap in $cfg.airports) { $airports[$ap.code] = $ap }
@@ -103,6 +123,7 @@ function Get-Tags($callsign, $reg, $type, $dbFlags) {
   if ($reg -and $liveries.ContainsKey($reg))   { $tags += [ordered]@{ kind = 'livery'; note = $liveries[$reg] } }
   if ($reg -and $watchRegs.ContainsKey($reg))  { $tags += [ordered]@{ kind = 'watch';  note = $watchRegs[$reg] } }
   elseif ($type -and $watchTypes.ContainsKey($type)) { $tags += [ordered]@{ kind = 'watch'; note = $watchTypes[$type] } }
+  elseif ($callsign -and $watchFlights.ContainsKey($callsign)) { $tags += [ordered]@{ kind = 'watch'; note = $watchFlights[$callsign] } }
   return ,$tags
 }
 
@@ -391,6 +412,20 @@ function Get-TypeFromModel($model) {
   return ''
 }
 
+# rare-flight tags for a scheduled flight; re-run every time so watchlist changes apply to stored days too
+function Set-PlanKinds($item) {
+  $tags = Get-Tags $item.cs $item.reg $item.type 0
+  if ($sc.government_airline_pattern -and $item.airline -match $sc.government_airline_pattern -and -not ($tags | Where-Object { $_.kind -eq 'military' })) {
+    $tags += [ordered]@{ kind = 'military'; note = $item.airline }
+  }
+  $numKey = "$($item.num)".Replace(' ', '').ToUpper()
+  if ($numKey -and $watchFlights.ContainsKey($numKey) -and -not ($tags | Where-Object { $_.kind -eq 'watch' })) {
+    $tags += [ordered]@{ kind = 'watch'; note = "$($watchFlights[$numKey])" }
+  }
+  $item.kinds = @($tags | ForEach-Object { $_.kind })
+  $item.note  = Get-NoteText $tags
+}
+
 function Get-Fids($code, $date) {
   $items = New-Object System.Collections.ArrayList
   foreach ($w in @(@('00:00', '11:59'), @('12:00', '23:59'))) {
@@ -415,22 +450,13 @@ function Get-Fids($code, $date) {
         $cs  = "$($f.callSign)".Replace(' ', '').ToUpper()
         if (-not $cs -and $f.airline.icao -and $num -match '(\d+[A-Z]?)$') { $cs = "$($f.airline.icao)$($Matches[1])".ToUpper() }
         $model = "$($f.aircraft.model)"
-        $type  = Get-TypeFromModel $model
-        $reg   = "$($f.aircraft.reg)".ToUpper()
-        $tags  = Get-Tags $cs $reg $type 0
-        $airline = "$($f.airline.name)"
-        if ($sc.government_airline_pattern -and $airline -match $sc.government_airline_pattern -and -not ($tags | Where-Object { $_.kind -eq 'military' })) {
-          $tags += [ordered]@{ kind = 'military'; note = $airline }
-        }
-        $numKey = $num.Replace(' ', '').ToUpper()
-        $wf = if ($watchFlights.ContainsKey($numKey)) { $watchFlights[$numKey] } elseif ($cs -and $watchFlights.ContainsKey($cs)) { $watchFlights[$cs] } else { $null }
-        if ($null -ne $wf -and -not ($tags | Where-Object { $_.kind -eq 'watch' })) { $tags += [ordered]@{ kind = 'watch'; note = "$wf" } }
-        [void]$items.Add([ordered]@{
+        $item = [ordered]@{
           ev = $(if ($dir -eq 'arrivals') { 'arr' } else { 'dep' }); min = $min; rmin = $rmin
-          num = $num; cs = $cs; airline = $airline; type = $type; model = $model; reg = $reg
-          other = "$($there.airport.iata)"; kinds = @($tags | ForEach-Object { $_.kind })
-          note = (Get-NoteText $tags)
-        })
+          num = $num; cs = $cs; airline = "$($f.airline.name)"; type = (Get-TypeFromModel $model); model = $model
+          reg = "$($f.aircraft.reg)".ToUpper(); other = "$($there.airport.iata)"; kinds = @(); note = ''
+        }
+        Set-PlanKinds $item
+        [void]$items.Add($item)
       }
     }
   }
@@ -472,6 +498,7 @@ if ($sc -and $env:AERODATABOX_KEY) {
     }
   }
 }
+foreach ($day in @($plan.days.Values)) { foreach ($it in @($day.flights)) { Set-PlanKinds $it } }
 # keep yesterday onward; slot markers for a few days
 $yesterday = $ny.AddDays(-1).ToString('yyyy-MM-dd', $inv)
 foreach ($k in @($plan.days.Keys))  { if (($k -split '\|')[1] -lt $yesterday) { $plan.days.Remove($k) } }
@@ -564,7 +591,8 @@ foreach ($b in $inbound) {
 }
 foreach ($o in $outbound) {
   $s = Find-Sched 'dep' $o.ap $o.cs
-  if ($s) { $s.dest = $o.dest; $s.status = 'done' }
+  # only mark today's departure as gone if it was due by now; otherwise it's yesterday's flight still en route
+  if ($s -and [int]$s.min -le $nowMin + 30) { $s.dest = $o.dest; $s.status = 'done' }
 }
 foreach ($s in $sched) {
   if ($s.status -eq 'expected' -and $s.min -lt $nowMin - 60) { $s.status = 'unseen' }
@@ -650,6 +678,8 @@ Write-Data 'schedule.json' ([ordered]@{
   recent   = @($events | Sort-Object { [long]$_.ts } -Descending | Select-Object -First 40)
   planned  = $plan.days
   schedule_usage = [ordered]@{ month = $monthKey; calls = [int]$plan.usage[$monthKey]; budget = [int]$sc.monthly_call_budget }
+  repo     = "$($env:GITHUB_REPOSITORY)"
+  watch    = @($issueWatch)
 })
 Write-Data 'planned.json' $plan
 

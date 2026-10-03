@@ -22,7 +22,7 @@
   --liv: #b8185f;  --liv-bg: #fbe2ee;
   --watch: #1d64c4; --watch-bg: #e0ecfb;
   --arr: #1d64c4; --dep: #1a7f4b;
-  --live: #b34700; --live-bg: #fff0e0;
+  --live: #b34700; --live-bg: #fff0e0; --star: #c98a00;
   --display: "Barlow Condensed", "Arial Narrow", "Roboto Condensed", sans-serif;
   --body: "Noto Sans KR", "Malgun Gothic", "Apple SD Gothic Neo", system-ui, sans-serif;
   --mono: "JetBrains Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
@@ -36,7 +36,7 @@
     --liv: #f48bbb;  --liv-bg: #3d1a2b;
     --watch: #86b6f6; --watch-bg: #172a45;
     --arr: #86b6f6; --dep: #6fd29d;
-    --live: #ffb070; --live-bg: #3a2512;
+    --live: #ffb070; --live-bg: #3a2512; --star: #ffc20e;
     color-scheme: dark;
   }
 }
@@ -47,7 +47,7 @@
   --liv: #f48bbb;  --liv-bg: #3d1a2b;
   --watch: #86b6f6; --watch-bg: #172a45;
   --arr: #86b6f6; --dep: #6fd29d;
-  --live: #ffb070; --live-bg: #3a2512;
+  --live: #ffb070; --live-bg: #3a2512; --star: #ffc20e;
   color-scheme: dark;
 }
 
@@ -137,6 +137,13 @@ tr.past td { opacity: .55; }
 .date-bar #d-prev, .date-bar #d-next { font-size: 20px; padding: 0; }
 .date-bar button:disabled { opacity: .4; cursor: default; }
 .date-bar input { padding: 0 10px; font-family: var(--mono); }
+.star { text-decoration: none; color: var(--muted); font-size: 16px; line-height: 1; margin-left: 4px; }
+.star:hover { color: var(--star); }
+.star.on { color: var(--star); }
+.watch-list { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; font-size: 13px; margin-bottom: 10px; }
+.watch-list a { color: var(--ink); text-decoration: none; border: 1px solid var(--line); border-radius: 999px; padding: 4px 10px; }
+.watch-list a .star { margin: 0 4px 0 0; }
+.star-help { font-size: 12px; color: var(--muted); margin: 8px 0 0; }
 .plan-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-bottom: 12px; }
 .plan-bar .filters { margin-bottom: 0; }
 .plan-bar input {
@@ -272,7 +279,9 @@ footer p { margin: 4px 0; max-width: 75ch; }
       </div>
       <input type="search" id="plan-q" autocomplete="off" data-t-ph="planSearch">
     </div>
+    <div class="watch-list" id="watch-list" hidden></div>
     <div id="today"></div>
+    <p class="star-help" data-t="starHelp"></p>
   </section>
 
   <section aria-labelledby="h-rwy">
@@ -314,6 +323,9 @@ const I18N = {
     planRare: "레어만", planAll: "전체 예정편", planSearch: "편명·기종·항공사·등록번호 검색 (예: A346, LH400)",
     scheduled: "예정", fromTo: (ev, o) => o ? (ev === "arr" ? ` · ${o}발` : ` · ${o}행`) : "", revised: (t) => ` · 변경 ${t}`,
     scheduleLabel: "예정 스케줄:", usage: (c, b) => `이번 달 조회 ${c}/${b}회`,
+    starHelp: "☆를 누르면 GitHub 화면이 열려요. Submit을 누르면 다음 갱신(최대 10분) 때 ★로 바뀌고 요약·1시간 전 알림 대상이 돼요. ★를 눌러 Close issue 하면 해제돼요.",
+    starTitle: { flight: "이 편 관심 등록", type: "이 기종 관심 등록", reg: "이 기체 관심 등록" }, unstar: "관심 해제 (GitHub에서 Close issue)",
+    myWatch: "내 관심:", issueBody: "NYC Spotter Board 관심 목록이에요. 이 이슈를 닫으면 관심에서 빠져요.",
     futureEmpty: "이 날 예상되는 레어편이 없어요. 학습된 정기편이 적으면 비어 있을 수 있고, 기록이 쌓일수록 정확해져요.",
     all: "전체", arrivals: "도착", departures: "출발", filterLabel: "도착 출발 필터",
     groundTitle: "지금 공항에 있는 레어", groundSub: "출발 사진 찍을 기회",
@@ -368,6 +380,9 @@ const I18N = {
     planRare: "Rare only", planAll: "All scheduled", planSearch: "Search flight, type, airline, reg (e.g. A346, LH400)",
     scheduled: "Scheduled", fromTo: (ev, o) => o ? (ev === "arr" ? ` · from ${o}` : ` · to ${o}`) : "", revised: (t) => ` · now ${t}`,
     scheduleLabel: "Schedules:", usage: (c, b) => `${c}/${b} lookups this month`,
+    starHelp: "☆ opens GitHub; press Submit and within ~10 minutes it turns ★ and you get summary and 1-hour alerts. Click ★ and close the issue to remove it.",
+    starTitle: { flight: "Watch this flight", type: "Watch this aircraft type", reg: "Watch this aircraft" }, unstar: "Stop watching (close the issue on GitHub)",
+    myWatch: "Watching:", issueBody: "NYC Spotter Board watchlist item. Close this issue to stop watching.",
     futureEmpty: "No rare flights expected that day. The forecast gets better as more days are logged.",
     all: "All", arrivals: "Arrivals", departures: "Departures", filterLabel: "Arrivals and departures filter",
     groundTitle: "On the ground now", groundSub: "your chance to catch the departure",
@@ -496,6 +511,29 @@ const hm = (m) => { m = ((m % 1440) + 1440) % 1440; return String(Math.floor(m /
 const nyTime = (ts) => new Date(ts * 1000).toLocaleString(T().locale, { timeZone: "America/New_York", month: T().dateMonth, day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false });
 const tagsHtml = (kinds) => `<span class="tags">${(kinds || []).map((k) => `<span class="tag ${esc(k)}">${T().tag[k] || esc(k)}</span>`).join("")}</span>`;
 const typeCell = (x) => `<b class="mono">${esc(x.type || "—")}</b> ${tagsHtml(x.kinds)}<span class="sub">${esc(x.model || TYPE_NAME[x.type] || "")}</span>`;
+// ☆ watch buttons: a pre-filled GitHub issue "watch flight LH400" / "watch type A346"; the workflow reads open ones
+const repoPath = () => {
+  if (data && data.repo) return data.repo;
+  const h = location.hostname;
+  return h.endsWith(".github.io") ? h.split(".")[0] + "/" + (location.pathname.split("/").filter(Boolean)[0] || "") : "";
+};
+function starBtn(kind, value) {
+  if (!value || !data) return "";
+  const v = String(value).replace(/\s+/g, "").toUpperCase();
+  const hit = (data.watch || []).find((w) => w.kind === kind && w.value === v);
+  if (hit) return `<a class="star on" href="${esc(hit.url)}" target="_blank" rel="noopener" title="${esc(T().unstar)}" aria-label="${esc(T().unstar)}">★</a>`;
+  const repo = repoPath();
+  if (!repo) return "";
+  const href = `https://github.com/${repo}/issues/new?title=${encodeURIComponent(`watch ${kind} ${v}`)}&body=${encodeURIComponent(T().issueBody)}`;
+  return `<a class="star" href="${href}" target="_blank" rel="noopener" title="${esc(T().starTitle[kind])}" aria-label="${esc(T().starTitle[kind])}">☆</a>`;
+}
+function renderWatchList() {
+  const w = (data && data.watch) || [];
+  const el = $("watch-list");
+  el.hidden = !w.length;
+  el.innerHTML = w.length ? `<span>${T().myWatch}</span>` + w.map((x) => `<a href="${esc(x.url)}" target="_blank" rel="noopener" title="${esc(T().unstar)}"><span class="star on">★</span>${esc(x.value)}</a>`).join("") : "";
+}
+
 const thead = (cols) => `<thead><tr>${cols.map((c) => `<th>${c}</th>`).join("")}</tr></thead>`;
 function ago(ts) {
   const m = Math.round((Date.now() / 1000 - ts) / 60);
@@ -702,9 +740,9 @@ function renderToday() {
         <td class="time c-time">${hm(s.min)}<span class="sub">${when}</span></td>
         <td class="c-ev"><span class="ev ${s.ev}">${T().ev[s.ev]}</span></td>
         <td class="mono c-ap">${esc(s.ap)}</td>
-        <td class="mono c-cs">${esc(s.cs || "—")}</td>
+        <td class="mono c-cs">${esc(s.cs || "—")}${starBtn("flight", s.num || s.cs)}</td>
         <td class="c-air">${airlineCell(s)}</td>
-        <td class="c-type">${typeCell(s)}</td>
+        <td class="c-type">${typeCell(s)}${s.type ? starBtn("type", s.type) : ""}</td>
         <td class="mono c-reg">${esc(s.reg || "—")}</td>
         <td class="c-state">${stateText(s)}</td>
         <td class="c-links">${links(s)}</td>
@@ -863,6 +901,7 @@ function renderAll() {
   renderStatus();
   renderApFilters();
   renderRegionFilters();
+  renderWatchList();
   renderAirFilters();
   if (data) { renderToday(); renderRunways(); renderGround(); renderPatterns(); renderRecent(); }
 }
