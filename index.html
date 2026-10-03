@@ -154,6 +154,23 @@ tr.past td { opacity: .55; }
 .spot-top a { color: var(--muted); font-size: 13px; text-underline-offset: 3px; white-space: nowrap; }
 .spot-tags { display: flex; flex-wrap: wrap; gap: 4px; }
 .rwy-src { margin-top: 8px; }
+.rwy-map { width: 100%; height: auto; display: block; background: var(--bg); border-radius: 6px; }
+.rwy-map .rl { font: 700 10px/1 var(--mono); fill: var(--ink); text-anchor: middle; dominant-baseline: middle; }
+.rwy-map .ra, .map-legend .lg.ra { stroke: var(--arr); background: var(--arr); }
+.rwy-map .rd, .map-legend .lg.rd { stroke: var(--dep); background: var(--dep); }
+.rwy-map .ra, .rwy-map .rd { stroke-width: 2.5; }
+.rwy-map .ra-head { fill: var(--arr); } .rwy-map .rd-head { fill: var(--dep); }
+.rwy-map .pin { fill: var(--sign); stroke: var(--sign-ink); stroke-width: 1.2; }
+.rwy-map .pn { font: 700 10px/1 var(--body); fill: var(--sign-ink); text-anchor: middle; dominant-baseline: central; }
+.rwy-map .north { fill: var(--muted); }
+.map-legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: var(--muted); }
+.map-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.map-legend .lg { display: inline-block; width: 14px; height: 3px; border-radius: 2px; }
+.map-legend .lg.pin { width: 10px; height: 10px; border-radius: 50%; background: var(--sign); border: 1px solid var(--sign-ink); }
+.pin-n {
+  display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; margin-right: 6px;
+  background: var(--sign); color: var(--sign-ink); font: 700 11px/1 var(--body); vertical-align: 1px;
+}
 
 .two { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 36px; }
 @media (max-width: 900px) { .two { grid-template-columns: minmax(0, 1fr); } }
@@ -221,6 +238,8 @@ footer p { margin: 4px 0; max-width: 75ch; }
   <div class="air-bar">
     <span class="label" data-t="airportFilterLabel"></span>
     <div class="filters" id="ap-filters" role="group"></div>
+    <span class="label" data-t="regionFilterLabel"></span>
+    <div class="filters" id="region-filters" role="group"></div>
     <span class="label" data-t="airlineFilterLabel"></span>
     <div class="filters" id="air-filters" role="group"></div>
   </div>
@@ -296,14 +315,16 @@ const I18N = {
     noMatch: "이 조건의 편이 없어요.",
     todayEmpty: "오늘 확인된 레어편이 아직 없어요. A380·747 같은 기체가 NYC로 출발하면 바로 여기에 도착 예정 시간이 뜨고, 며칠 기록이 쌓이면 매일 오는 편도 미리 표시돼요.",
     thToday: ["시간", "구분", "공항", "편명", "항공사", "기종", "등록번호", "상태", ""],
-    airlineFilterLabel: "항공사 (여러 개 선택 가능)", allAirlines: "전체 항공사", otherAirline: "기타·개인기",
+    airlineFilterLabel: "항공사 (알파벳순)", allAirlines: "전체 항공사",
+    regionFilterLabel: "지역 (여러 개 선택 가능)", allRegions: "전체 지역",
+    region: { na: "북미", latam: "중남미·카리브", eu: "유럽", mea: "중동·아프리카", apac: "아시아·오세아니아", cargo: "화물", gov: "군·정부", other: "기타 항공사" },
     airportFilterLabel: "공항 (여러 개 선택 가능)", allAirports: "전체 공항",
     rwyTitle: "활주로 & 스포팅 포인트", rwySub: "10분마다 갱신 · 지금 방향에 맞는 추천",
     rwyArr: "착륙", rwyDep: "이륙", rwyNone: "정보 없음",
     basisTraffic: (n) => `최근 비행기 ${n}대 기준`, basisWind: "근처 비행기가 없어 바람으로 추정", basisNone: "근처 비행기와 바람 정보가 없어요",
     wind: (d, s, g) => d == null ? (s ? `바람 가변 ${s}kt` : "바람 정보 없음") : `바람 ${String(d).padStart(3, "0")}° ${s}kt` + (g ? ` (돌풍 ${g}kt)` : ""),
     spotFor: (f) => (f.startsWith("arr") ? f.slice(3) + " 착륙" : f.slice(3) + " 이륙"),
-    caution: "공항·사유지", map: "지도", noSpot: "지금 활주로 방향에 맞는 공개 포인트 정보가 없어요.",
+    caution: "공항·사유지", map: "지도", spotPin: "추천 포인트", noSpot: "지금 활주로 방향에 맞는 공개 포인트 정보가 없어요.",
     spotSource: "포인트 출처: spotterguide.net",
     tomorrow: "내일", eta: "도착 예정", usual: "평소 시간",
     groundEmpty: "지금 세 공항 지상에 있는 레어 기체는 없어요. 레어 기체가 내리면 여기에 뜨고, 보통 몇 시에 다시 출발하는지도 함께 보여줘요.",
@@ -344,14 +365,16 @@ const I18N = {
     noMatch: "Nothing matches this filter.",
     todayEmpty: "No rare movements found yet today. When an A380, 747 or special livery takes off for New York, its ETA shows up here. After a few days of logging, regular flights are listed ahead of time too.",
     thToday: ["Time", "", "Airport", "Flight", "Airline", "Type", "Reg", "Status", ""],
-    airlineFilterLabel: "Airlines (pick any)", allAirlines: "All airlines", otherAirline: "Other / private",
+    airlineFilterLabel: "Airlines (A–Z)", allAirlines: "All airlines",
+    regionFilterLabel: "Regions (pick any)", allRegions: "All regions",
+    region: { na: "North America", latam: "Latin America & Caribbean", eu: "Europe", mea: "Middle East & Africa", apac: "Asia & Oceania", cargo: "Cargo", gov: "Military & government", other: "Other airlines" },
     airportFilterLabel: "Airports (pick any)", allAirports: "All airports",
     rwyTitle: "Runways & spotting spots", rwySub: "updated every 10 min · picks for the current flow",
     rwyArr: "Landing", rwyDep: "Departing", rwyNone: "unknown",
     basisTraffic: (n) => `based on ${n} recent aircraft`, basisWind: "no traffic nearby, estimated from wind", basisNone: "no traffic or wind data",
     wind: (d, s, g) => d == null ? (s ? `Wind variable ${s}kt` : "No wind data") : `Wind ${String(d).padStart(3, "0")}° ${s}kt` + (g ? ` (gusts ${g}kt)` : ""),
     spotFor: (f) => (f.startsWith("arr") ? "RWY " + f.slice(3) + " arrivals" : "RWY " + f.slice(3) + " departures"),
-    caution: "Airport/private property", map: "Map", noSpot: "No public spot is listed for the current runway flow.",
+    caution: "Airport/private property", map: "Map", spotPin: "Suggested spot", noSpot: "No public spot is listed for the current runway flow.",
     spotSource: "Spots: spotterguide.net (tips in Korean)",
     tomorrow: "tomorrow", eta: "ETA", usual: "usual time",
     groundEmpty: "No rare aircraft on the ground at EWR, JFK or LGA right now. When one lands it appears here, along with when it usually leaves.",
@@ -367,35 +390,64 @@ const I18N = {
     locale: "en-US", dateMonth: "short"
   }
 };
-// ICAO airline code (first 3 letters of the callsign) -> name
-const AIRLINES = {
-  AAL: "American", DAL: "Delta", UAL: "United", JBU: "JetBlue", ASA: "Alaska", SWA: "Southwest", NKS: "Spirit",
-  FFT: "Frontier", AAY: "Allegiant", SCX: "Sun Country", HAL: "Hawaiian", RPA: "Republic", EDV: "Endeavor",
-  SKW: "SkyWest", ENY: "Envoy", JIA: "PSA", GJS: "GoJet", ASH: "Mesa", PDT: "Piedmont", BRE: "Breeze",
-  ACA: "Air Canada", JZA: "Air Canada Jazz", ROU: "Air Canada Rouge", WJA: "WestJet", PTR: "Porter",
-  BAW: "British Airways", VIR: "Virgin Atlantic", DLH: "Lufthansa", AFR: "Air France", KLM: "KLM", IBE: "Iberia",
-  AEA: "Air Europa", TAP: "TAP Air Portugal", SWR: "Swiss", AUA: "Austrian", SAS: "SAS", FIN: "Finnair",
-  ICE: "Icelandair", EIN: "Aer Lingus", ITY: "ITA Airways", LOT: "LOT Polish", BEL: "Brussels", EWG: "Eurowings",
-  CFG: "Condor", NOZ: "Norse", NSZ: "Norse", PLY: "Play", EDW: "Edelweiss", VLG: "Vueling", LZB: "Bulgaria Air",
-  THY: "Turkish", UAE: "Emirates", QTR: "Qatar", ETD: "Etihad", SVA: "Saudia", ELY: "El Al", RJA: "Royal Jordanian",
-  MSR: "EgyptAir", ETH: "Ethiopian", RAM: "Royal Air Maroc", KQA: "Kenya Airways", RWD: "RwandAir", SAA: "South African",
-  KAL: "Korean Air", AAR: "Asiana", JAL: "Japan Airlines", ANA: "ANA", CPA: "Cathay Pacific", EVA: "EVA Air",
-  CAL: "China Airlines", CCA: "Air China", CES: "China Eastern", CSN: "China Southern", CXA: "Xiamen Air",
-  CHH: "Hainan", SIA: "Singapore", QFA: "Qantas", ANZ: "Air New Zealand", AIC: "Air India", PAL: "Philippine",
-  PIA: "PIA", UZB: "Uzbekistan", AMX: "Aeromexico", VOI: "Volaris", VIV: "Viva", AVA: "Avianca", CMP: "Copa",
-  LAN: "LATAM", TAM: "LATAM Brasil", LPE: "LATAM Peru", ARG: "Aerolineas Argentinas", GLO: "Gol", AZU: "Azul",
-  BWA: "Caribbean", CAY: "Cayman", BHS: "Bahamasair", JBA: "JetBlue", DWI: "Arajet", SKU: "Sky Airline",
-  FDX: "FedEx", UPS: "UPS", GTI: "Atlas Air", CLX: "Cargolux", CKS: "Kalitta", NCA: "Nippon Cargo",
-  GEC: "Lufthansa Cargo", MPH: "Martinair", ABX: "ABX Air", ATN: "ATI", PAC: "Polar", WGN: "Western Global",
-  CAO: "Air China Cargo", CKK: "China Cargo", ABW: "AirBridgeCargo", QAF: "Qatar Amiri Flight", BCS: "DHL (EAT)",
-  DHK: "DHL Air", BOX: "AeroLogic", ICL: "CAL Cargo", TAY: "ASL Belgium",
-  RCH: "US Air Force (Reach)", SAM: "US Air Force (SAM)", PAT: "US Army", CNV: "US Navy", CFC: "RCAF", RRR: "Royal Air Force",
-  EJA: "NetJets", LXJ: "Flexjet", XOJ: "XOJET", JTL: "Jet Linx", VJT: "VistaJet", GAJ: "Gama"
+// ICAO airline code (first 3 letters of the callsign) -> name, grouped by region
+const AIRLINE_GROUPS = {
+  na: {
+    AAL: "American", DAL: "Delta", UAL: "United", JBU: "JetBlue", ASA: "Alaska", SWA: "Southwest", NKS: "Spirit",
+    FFT: "Frontier", AAY: "Allegiant", SCX: "Sun Country", HAL: "Hawaiian", RPA: "Republic", EDV: "Endeavor",
+    SKW: "SkyWest", ENY: "Envoy", JIA: "PSA", GJS: "GoJet", ASH: "Mesa", PDT: "Piedmont", BRE: "Breeze",
+    ACA: "Air Canada", JZA: "Air Canada Jazz", ROU: "Air Canada Rouge", WJA: "WestJet", PTR: "Porter"
+  },
+  latam: {
+    AMX: "Aeromexico", VOI: "Volaris", VIV: "Viva", AVA: "Avianca", CMP: "Copa", LAN: "LATAM", TAM: "LATAM Brasil",
+    LPE: "LATAM Peru", ARG: "Aerolineas Argentinas", GLO: "Gol", AZU: "Azul", BWA: "Caribbean", CAY: "Cayman",
+    BHS: "Bahamasair", DWI: "Arajet", SKU: "Sky Airline"
+  },
+  eu: {
+    BAW: "British Airways", VIR: "Virgin Atlantic", DLH: "Lufthansa", AFR: "Air France", KLM: "KLM", IBE: "Iberia",
+    AEA: "Air Europa", TAP: "TAP Air Portugal", SWR: "Swiss", AUA: "Austrian", SAS: "SAS", FIN: "Finnair",
+    ICE: "Icelandair", EIN: "Aer Lingus", ITY: "ITA Airways", LOT: "LOT Polish", BEL: "Brussels", EWG: "Eurowings",
+    CFG: "Condor", NOZ: "Norse", NSZ: "Norse", PLY: "Play", EDW: "Edelweiss", VLG: "Vueling", LZB: "Bulgaria Air",
+    THY: "Turkish"
+  },
+  mea: {
+    UAE: "Emirates", QTR: "Qatar", ETD: "Etihad", SVA: "Saudia", ELY: "El Al", RJA: "Royal Jordanian",
+    MSR: "EgyptAir", ETH: "Ethiopian", RAM: "Royal Air Maroc", KQA: "Kenya Airways", RWD: "RwandAir", SAA: "South African"
+  },
+  apac: {
+    KAL: "Korean Air", AAR: "Asiana", JAL: "Japan Airlines", ANA: "ANA", CPA: "Cathay Pacific", EVA: "EVA Air",
+    CAL: "China Airlines", CCA: "Air China", CES: "China Eastern", CSN: "China Southern", CXA: "Xiamen Air",
+    CHH: "Hainan", SIA: "Singapore", QFA: "Qantas", ANZ: "Air New Zealand", AIC: "Air India", PAL: "Philippine",
+    PIA: "PIA", UZB: "Uzbekistan"
+  },
+  cargo: {
+    FDX: "FedEx", UPS: "UPS", GTI: "Atlas Air", CLX: "Cargolux", CKS: "Kalitta", NCA: "Nippon Cargo",
+    GEC: "Lufthansa Cargo", MPH: "Martinair", ABX: "ABX Air", ATN: "ATI", PAC: "Polar", WGN: "Western Global",
+    CAO: "Air China Cargo", CKK: "China Cargo", ABW: "AirBridgeCargo", BCS: "DHL (EAT)", DHK: "DHL Air",
+    BOX: "AeroLogic", ICL: "CAL Cargo", TAY: "ASL Belgium"
+  },
+  gov: {
+    RCH: "US Air Force (Reach)", SAM: "US Air Force (SAM)", PAT: "US Army", CNV: "US Navy", CFC: "RCAF",
+    RRR: "Royal Air Force", QAF: "Qatar Amiri Flight"
+  },
+  private: { EJA: "NetJets", LXJ: "Flexjet", XOJ: "XOJET", JTL: "Jet Linx", VJT: "VistaJet", GAJ: "Gama" }
 };
+const REGIONS = ["na", "latam", "eu", "mea", "apac", "cargo", "gov", "other"];
+const AIRLINES = {}, REGION_OF = {};
+for (const [region, list] of Object.entries(AIRLINE_GROUPS)) {
+  for (const [code, name] of Object.entries(list)) { AIRLINES[code] = name; REGION_OF[code] = region; }
+}
 const airlineCode = (cs) => (/^[A-Z]{3}[0-9A-Z]/.test(cs || "") ? cs.slice(0, 3) : "");
-const airlineName = (code) => code ? (AIRLINES[code] || code) : T().otherAirline;
-const airlineCell = (x) => { const c = airlineCode(x.cs); return c ? `${esc(airlineName(c))}<span class="sub">${c}</span>` : `<span class="sub">${T().otherAirline}</span>`; };
-const airKey = (x) => airlineCode(x.cs) || "OTHER";
+const airlineName = (code) => code ? (AIRLINES[code] || code) : T().region.gov;
+const airlineCell = (x) => { const c = airlineCode(x.cs); return c ? `${esc(airlineName(c))}<span class="sub">${c}</span>` : `<span class="sub">${T().region.gov}</span>`; };
+const airKey = (x) => airlineCode(x.cs) || "GOV";
+// private flights (N-number callsigns, bizjet operators) are hidden; military/government stays
+const regionOf = (x) => {
+  const c = airlineCode(x.cs);
+  if (c) return REGION_OF[c] || "other";
+  return (x.kinds || []).includes("military") ? "gov" : "private";
+};
+const isShown = (x) => regionOf(x) !== "private";
 
 const TYPE_NAME = {
   A388: "Airbus A380", B748: "Boeing 747-8", B744: "Boeing 747-400", B742: "Boeing 747-200", B74S: "Boeing 747SP",
@@ -441,8 +493,13 @@ try { airSel = new Set(JSON.parse(localStorage.getItem("spot-airlines") || "[]")
 const AIRPORTS = ["EWR", "JFK", "LGA"];
 let apSel = new Set();
 try { apSel = new Set(JSON.parse(localStorage.getItem("spot-airports") || "[]")); } catch (e) {}
-// airline and airport filters combine: a row must match both
-const passAir = (x) => (airSel.size === 0 || airSel.has(airKey(x))) && (apSel.size === 0 || apSel.has(x.ap));
+let regSel = new Set();
+try { regSel = new Set(JSON.parse(localStorage.getItem("spot-regions") || "[]")); } catch (e) {}
+// region, airline and airport filters combine: a row must match all of them
+const passAir = (x) => isShown(x)
+  && (regSel.size === 0 || regSel.has(regionOf(x)))
+  && (airSel.size === 0 || airSel.has(airKey(x)))
+  && (apSel.size === 0 || apSel.has(x.ap));
 
 function renderApFilters() {
   const counts = new Map(AIRPORTS.map((a) => [a, 0]));
@@ -452,14 +509,30 @@ function renderApFilters() {
     AIRPORTS.map((a) => `<button type="button" data-ap="${a}" aria-pressed="${apSel.has(a)}">${a}<span class="n">${counts.get(a)}</span></button>`).join("");
 }
 
+// every shown flight on the site, so filter buttons exist even with 0 today
+const allShown = () => [...data.today, ...(data.ground || []), ...(data.patterns || []), ...(data.recent || [])].filter(isShown);
+
+function renderRegionFilters() {
+  if (!data) { $("region-filters").innerHTML = ""; return; }
+  const counts = new Map();
+  for (const x of allShown()) counts.set(regionOf(x), 0);
+  for (const s of data.today.filter(isShown)) counts.set(regionOf(s), counts.get(regionOf(s)) + 1);
+  for (const r of regSel) if (!counts.has(r)) counts.set(r, 0);
+  const keys = REGIONS.filter((r) => counts.has(r));
+  $("region-filters").innerHTML =
+    `<button type="button" data-region="" aria-pressed="${regSel.size === 0}">${T().allRegions}</button>` +
+    keys.map((r) => `<button type="button" data-region="${r}" aria-pressed="${regSel.has(r)}">${T().region[r]}<span class="n">${counts.get(r)}</span></button>`).join("");
+}
+
 function renderAirFilters() {
   if (!data) { $("air-filters").innerHTML = ""; return; }
+  const inRegion = (x) => regSel.size === 0 || regSel.has(regionOf(x));
   const counts = new Map();
-  for (const s of data.today) counts.set(airKey(s), (counts.get(airKey(s)) || 0) + 1);
-  for (const x of [...(data.ground || []), ...(data.patterns || []), ...(data.recent || [])]) if (!counts.has(airKey(x))) counts.set(airKey(x), 0);
+  for (const x of allShown().filter(inRegion)) counts.set(airKey(x), 0);
+  for (const s of data.today.filter((s) => isShown(s) && inRegion(s))) counts.set(airKey(s), counts.get(airKey(s)) + 1);
   for (const k of airSel) if (!counts.has(k)) counts.set(k, 0);
-  const label = (k) => k === "OTHER" ? T().otherAirline : airlineName(k);
-  const keys = [...counts.keys()].sort((a, b) => (a === "OTHER") - (b === "OTHER") || label(a).localeCompare(label(b)));
+  const label = (k) => k === "GOV" ? T().region.gov : airlineName(k);
+  const keys = [...counts.keys()].sort((a, b) => label(a).localeCompare(label(b), "en"));   // alphabetical
   $("air-filters").innerHTML =
     `<button type="button" data-air="" aria-pressed="${airSel.size === 0}">${T().allAirlines}</button>` +
     keys.map((k) => `<button type="button" data-air="${esc(k)}" aria-pressed="${airSel.has(k)}">${esc(label(k))}<span class="n">${counts.get(k)}</span></button>`).join("");
@@ -489,8 +562,9 @@ function renderStatus() {
     return;
   }
   if (!data) { $("status").textContent = T().loading; return; }
-  const air = data.today.filter((s) => s.status === "airborne").length;
-  $("status").innerHTML = T().statusLine(ago(data.updated), data.today.length, air, data.patterns.length);
+  const shown = data.today.filter(isShown);
+  const air = shown.filter((s) => s.status === "airborne").length;
+  $("status").innerHTML = T().statusLine(ago(data.updated), shown.length, air, data.patterns.filter(isShown).length);
   const stale = (Date.now() / 1000 - data.updated) / 60 > 40;
   $("notice").hidden = !stale;
   if (stale) $("notice").textContent = T().stale(ago(data.updated));
@@ -581,6 +655,64 @@ function renderGround() {
 
 let spots = null;
 const AIRPORT_NAME = { EWR: "Newark Liberty", JFK: "John F. Kennedy", LGA: "LaGuardia" };
+
+// runway thresholds [low end, lat, lon, high end, lat, lon] from OurAirports (ourairports.com, public domain)
+const RUNWAY_GEO = {
+  EWR: [["04L", 40.675392, -74.179456, "22R", 40.70257, -74.16217],
+        ["04R", 40.677588, -74.174253, "22L", 40.702299, -74.158539],
+        ["11", 40.702815, -74.180748, "29", 40.701203, -74.156502]],
+  JFK: [["04L", 40.622002, -73.785599, "22R", 40.6488, -73.764702],
+        ["04R", 40.625401, -73.770302, "22L", 40.645199, -73.754899],
+        ["13L", 40.657799, -73.790199, "31R", 40.6437, -73.7593],
+        ["13R", 40.648399, -73.816704, "31L", 40.627899, -73.771599]],
+  LGA: [["04", 40.769199, -73.884102, "22", 40.7854, -73.870697],
+        ["13", 40.782299, -73.878502, "31", 40.772099, -73.857101]]
+};
+
+// Schematic airport map: runways to true scale and orientation, the flow in use as arrows, recommended spots as numbered pins.
+function runwayMap(code, r, pins) {
+  const rwys = RUNWAY_GEO[code];
+  if (!rwys) return "";
+  const pts = [];
+  rwys.forEach((w) => pts.push([w[1], w[2]], [w[4], w[5]]));
+  pins.forEach((s) => pts.push([s.lat, s.lon]));
+  const lat0 = pts.reduce((a, p) => a + p[0], 0) / pts.length;
+  const k = Math.cos(lat0 * Math.PI / 180);
+  const xy = (lat, lon) => [lon * k, -lat];
+  const P = pts.map((p) => xy(p[0], p[1]));
+  const minX = Math.min(...P.map((p) => p[0])), maxX = Math.max(...P.map((p) => p[0]));
+  const minY = Math.min(...P.map((p) => p[1])), maxY = Math.max(...P.map((p) => p[1]));
+  const W = 320, pad = 34;
+  const scale = Math.min((W - 2 * pad) / (maxX - minX || 1), (W * 0.75 - 2 * pad) / (maxY - minY || 1));
+  const H = Math.round((maxY - minY) * scale + 2 * pad);
+  const tx = (lat, lon) => { const [x, y] = xy(lat, lon); return [pad + (x - minX) * scale + ((W - 2 * pad) - (maxX - minX) * scale) / 2, pad + (y - minY) * scale]; };
+  const num = (end) => end.replace(/[LRC]$/, "");
+  const arrIn = (end) => (r.arr || []).includes(num(end));
+  const depIn = (end) => (r.dep || []).includes(num(end));
+  let svg = "";
+  for (const [a, la, loa, b, lb, lob] of rwys) {
+    const [x1, y1] = tx(la, loa), [x2, y2] = tx(lb, lob);
+    const len = Math.hypot(x2 - x1, y2 - y1) || 1, ux = (x2 - x1) / len, uy = (y2 - y1) / len;
+    const active = arrIn(a) || arrIn(b) || depIn(a) || depIn(b);
+    svg += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${active ? "var(--ink)" : "var(--muted)"}" stroke-opacity="${active ? 1 : .45}" stroke-width="6" stroke-linecap="butt"/>`;
+    // end labels sit just outside each threshold
+    svg += `<text x="${x1 - ux * 13}" y="${y1 - uy * 13}" class="rl">${a}</text><text x="${x2 + ux * 13}" y="${y2 + uy * 13}" class="rl">${b}</text>`;
+    // landing on an end: arrow comes in from outside toward that threshold; departing: arrow leaves past the far end
+    const arrow = (sx, sy, ex, ey, cls) => `<line x1="${sx}" y1="${sy}" x2="${ex}" y2="${ey}" class="${cls}" marker-end="url(#ah-${cls}-${code})"/>`;
+    if (arrIn(a)) svg += arrow(x1 - ux * 46, y1 - uy * 46, x1 - ux * 22, y1 - uy * 22, "ra");
+    if (arrIn(b)) svg += arrow(x2 + ux * 46, y2 + uy * 46, x2 + ux * 22, y2 + uy * 22, "ra");
+    if (depIn(a)) svg += arrow(x2 + ux * 22, y2 + uy * 22, x2 + ux * 46, y2 + uy * 46, "rd");
+    if (depIn(b)) svg += arrow(x1 - ux * 22, y1 - uy * 22, x1 - ux * 46, y1 - uy * 46, "rd");
+  }
+  pins.forEach((s, i) => {
+    const [x, y] = tx(s.lat, s.lon);
+    svg += `<circle cx="${x}" cy="${y}" r="8" class="pin"/><text x="${x}" y="${y}" class="pn">${i + 1}</text>`;
+  });
+  const defs = ["ra", "rd"].map((c) => `<marker id="ah-${c}-${code}" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="${c}-head"/></marker>`).join("");
+  const north = `<g transform="translate(${W - 16},18)"><path d="M0,-9 L5,5 L0,2 L-5,5 z" class="north"/><text y="16" class="rl">N</text></g>`;
+  return `<svg class="rwy-map" viewBox="0 0 ${W} ${H}" role="img" aria-label="${code} runway map"><defs>${defs}</defs>${svg}${north}</svg>
+    <div class="map-legend"><span><i class="lg ra"></i>${T().rwyArr}</span><span><i class="lg rd"></i>${T().rwyDep}</span>${pins.length ? `<span><i class="lg pin"></i>${T().spotPin}</span>` : ""}</div>`;
+}
 function renderRunways() {
   const rw = data.runways || {};
   const codes = Object.keys(rw).filter((c) => apSel.size === 0 || apSel.has(c));
@@ -602,9 +734,10 @@ function renderRunways() {
         <div><span class="k">${T().rwyDep}</span><b>${ends(r.dep)}</b></div>
       </div>
       <div class="sub">${esc(T().wind(r.wind_dir, r.wind_spd, r.wind_gust))} · ${basis}</div>
-      ${spots == null ? "" : matches.length ? `<ul class="spots">${matches.map(({ s, hit }) => `
+      ${runwayMap(code, r, matches.map((m) => m.s).filter((s) => s.lat != null))}
+      ${spots == null ? "" : matches.length ? `<ul class="spots">${matches.map(({ s, hit }, i) => `
         <li>
-          <div class="spot-top"><b>${esc(s.name)}</b>
+          <div class="spot-top"><b><span class="pin-n">${i + 1}</span>${esc(s.name)}</b>
             <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(s.name + ", " + s.area)}" target="_blank" rel="noopener">${T().map}</a></div>
           <div class="spot-tags">${hit.map((f) => `<span class="tag watch">${esc(T().spotFor(f))}</span>`).join("")}${s.caution ? `<span class="tag livery">${T().caution}</span>` : ""}</div>
           <div class="sub">${esc(s.tip)}</div>
@@ -653,6 +786,7 @@ function renderAll() {
   renderStatic();
   renderStatus();
   renderApFilters();
+  renderRegionFilters();
   renderAirFilters();
   if (data) { renderToday(); renderRunways(); renderGround(); renderPatterns(); renderRecent(); }
 }
@@ -688,6 +822,25 @@ $("ap-filters").addEventListener("click", (e) => {
   else if (apSel.has(k)) apSel.delete(k);
   else apSel.add(k);
   try { localStorage.setItem("spot-airports", JSON.stringify([...apSel])); } catch (err) {}
+  renderAll();
+});
+
+$("region-filters").addEventListener("click", (e) => {
+  const b = e.target.closest("button");
+  if (!b || !data) return;
+  const r = b.dataset.region;
+  if (!r) regSel.clear();
+  else if (regSel.has(r)) regSel.delete(r);
+  else regSel.add(r);
+  // drop picked airlines that are outside the chosen regions
+  if (regSel.size) {
+    const regionOfKey = (k) => k === "GOV" ? "gov" : (REGION_OF[k] || "other");
+    for (const k of [...airSel]) if (!regSel.has(regionOfKey(k))) airSel.delete(k);
+  }
+  try {
+    localStorage.setItem("spot-regions", JSON.stringify([...regSel]));
+    localStorage.setItem("spot-airlines", JSON.stringify([...airSel]));
+  } catch (err) {}
   renderAll();
 });
 
