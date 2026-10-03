@@ -59,11 +59,18 @@ a:focus-visible, button:focus-visible { outline: 2px solid var(--sign); outline-
 
 .sign { background: var(--sign); color: var(--sign-ink); padding: calc(env(safe-area-inset-top, 0px) + 14px) 16px 14px; }
 .sign-inner, main, footer { max-width: 1180px; margin: 0 auto; }
-.sign-inner { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px 24px; }
+.sign-inner { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 24px; }
 .brand { font: 700 clamp(26px, 4vw, 36px)/1 var(--display); letter-spacing: .04em; text-transform: uppercase; margin: 0; }
 .brand span { font-weight: 500; opacity: .7; }
+.sign-right { display: flex; align-items: center; gap: 8px 16px; flex-wrap: wrap; }
 .status { font: 500 14px/1.3 var(--body); display: flex; gap: 6px 14px; flex-wrap: wrap; }
 .status b { font-family: var(--mono); font-weight: 600; }
+.lang { display: inline-flex; border: 1.5px solid var(--sign-ink); border-radius: 999px; overflow: hidden; }
+.lang button {
+  font: 700 12px/1 var(--body); letter-spacing: .04em; padding: 6px 10px; cursor: pointer;
+  border: 0; background: transparent; color: var(--sign-ink);
+}
+.lang button[aria-pressed="true"] { background: var(--sign-ink); color: var(--sign); }
 
 main { padding: 24px 16px 8px; display: grid; gap: 36px; }
 section > h2 {
@@ -127,7 +134,13 @@ footer p { margin: 4px 0; max-width: 75ch; }
 <div class="sign">
   <div class="sign-inner">
     <h1 class="brand">NYC Spotter Board <span>EWR · JFK · LGA</span></h1>
-    <div class="status" id="status">불러오는 중…</div>
+    <div class="sign-right">
+      <div class="status" id="status"></div>
+      <div class="lang" role="group" aria-label="Language">
+        <button type="button" data-lang="ko" aria-pressed="true">한</button>
+        <button type="button" data-lang="en" aria-pressed="false">EN</button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -135,40 +148,112 @@ footer p { margin: 4px 0; max-width: 75ch; }
   <div class="notice" id="notice" hidden></div>
 
   <section aria-labelledby="h-today">
-    <h2 id="h-today">오늘의 레어 스케줄 <small id="today-sub">뉴욕 시간</small></h2>
-    <div class="filters" id="filters" role="group" aria-label="도착 출발 필터">
-      <button type="button" data-k="all" aria-pressed="true">전체</button>
-      <button type="button" data-k="arr" aria-pressed="false">도착</button>
-      <button type="button" data-k="dep" aria-pressed="false">출발</button>
+    <h2 id="h-today"><span data-t="todayTitle"></span> <small id="today-sub"></small></h2>
+    <div class="filters" id="filters" role="group">
+      <button type="button" data-k="all" aria-pressed="true" data-t="all"></button>
+      <button type="button" data-k="arr" aria-pressed="false" data-t="arrivals"></button>
+      <button type="button" data-k="dep" aria-pressed="false" data-t="departures"></button>
     </div>
     <div id="today"></div>
   </section>
 
   <section aria-labelledby="h-ground">
-    <h2 id="h-ground">지금 공항에 있는 레어 <small>출발 사진 찍을 기회</small></h2>
+    <h2 id="h-ground"><span data-t="groundTitle"></span> <small data-t="groundSub"></small></h2>
     <div id="ground"></div>
   </section>
 
   <div class="two">
     <section aria-labelledby="h-patterns">
-      <h2 id="h-patterns">자주 오는 레어편 <small>최근 3주 관측으로 학습</small></h2>
+      <h2 id="h-patterns"><span data-t="patternsTitle"></span> <small data-t="patternsSub"></small></h2>
       <div id="patterns"></div>
     </section>
     <section aria-labelledby="h-recent">
-      <h2 id="h-recent">최근 기록</h2>
+      <h2 id="h-recent"><span data-t="recentTitle"></span></h2>
       <div id="recent"></div>
     </section>
   </div>
 </main>
 
 <footer>
-  <p>도착 예정은 비행 중인 기체의 편명 노선과 남은 거리로 계산하고, "예상"은 지난 기록에서 같은 편이 보통 오던 시간이에요. 실제와 다를 수 있어요.</p>
-  <p>데이터: <a href="https://adsb.lol" target="_blank" rel="noopener">adsb.lol</a> (ODbL), <a href="https://adsb.fi" target="_blank" rel="noopener">adsb.fi</a>, 노선 <a href="https://www.adsbdb.com" target="_blank" rel="noopener">adsbdb</a>. GitHub Actions가 약 10분마다 갱신해요.</p>
+  <p data-t="footer1"></p>
+  <p><span data-t="dataLabel"></span> <a href="https://adsb.lol" target="_blank" rel="noopener">adsb.lol</a> (ODbL), <a href="https://adsb.fi" target="_blank" rel="noopener">adsb.fi</a>, <a href="https://www.adsbdb.com" target="_blank" rel="noopener">adsbdb</a>. <span data-t="footer2"></span></p>
 </footer>
 
 <script>
-const TAG_LABEL = { military: "군용", xl: "대형기", livery: "특별 도장", watch: "관심" };
-const EV_LABEL = { arr: "도착", dep: "출발" };
+const I18N = {
+  ko: {
+    loading: "불러오는 중…",
+    todayTitle: "오늘의 레어 스케줄", nyTime: "뉴욕 시간",
+    all: "전체", arrivals: "도착", departures: "출발", filterLabel: "도착 출발 필터",
+    groundTitle: "지금 공항에 있는 레어", groundSub: "출발 사진 찍을 기회",
+    patternsTitle: "자주 오는 레어편", patternsSub: "최근 3주 관측으로 학습",
+    recentTitle: "최근 기록",
+    footer1: "도착 예정은 비행 중인 기체의 편명 노선과 남은 거리로 계산하고, \"예상\"은 지난 기록에서 같은 편이 보통 오던 시간이에요. 실제와 다를 수 있어요.",
+    dataLabel: "데이터:", footer2: "GitHub Actions가 약 10분마다 갱신해요.",
+    tag: { military: "군용", xl: "대형기", livery: "특별 도장", watch: "관심" },
+    ev: { arr: "도착", dep: "출발" },
+    dow: ["일", "월", "화", "수", "목", "금", "토"], dowJoin: "·",
+    justNow: "방금", minAgo: (n) => n + "분 전", hAgo: (n) => n + "시간 전", dAgo: (n) => n + "일 전",
+    track: "위치", photos: "사진", flight: "편 정보",
+    airborne: (o) => "비행 중" + (o ? ` · ${o} 출발` : ""),
+    landed: "도착함", departed: "출발함", forDest: (d) => ` · ${d}행`,
+    unseen: "오늘은 안 보였어요",
+    expected: (d) => "예상" + (d ? ` · 최근 ${d}일 관측` : ""),
+    statusLine: (ago, n, air, p) => `<span>갱신 <b>${ago}</b></span><span>오늘 레어 <b>${n}</b>편</span><span>비행 중 <b>${air}</b></span><span>학습된 편 <b>${p}</b></span>`,
+    stale: (ago) => `마지막 갱신이 ${ago}이에요. GitHub 저장소의 Actions 탭에서 자동 실행이 멈췄는지 확인해 주세요.`,
+    noMatch: "이 조건의 편이 없어요.",
+    todayEmpty: "오늘 확인된 레어편이 아직 없어요. A380·747 같은 기체가 NYC로 출발하면 바로 여기에 도착 예정 시간이 뜨고, 며칠 기록이 쌓이면 매일 오는 편도 미리 표시돼요.",
+    thToday: ["시간", "구분", "공항", "편명", "기종", "등록번호", "상태", ""],
+    tomorrow: "내일", eta: "도착 예정", usual: "평소 시간",
+    groundEmpty: "지금 세 공항 지상에 있는 레어 기체는 없어요. 레어 기체가 내리면 여기에 뜨고, 보통 몇 시에 다시 출발하는지도 함께 보여줘요.",
+    landedAt: (t) => "도착 " + t, landedUnknown: "도착 시간 모름",
+    nextDep: (t, cs) => `출발 예상 ${t} · ${cs}`, nextDepUnknown: "출발 시간은 아직 학습 전",
+    patternsEmpty: "아직 학습된 편이 없어요. 같은 레어편이 이틀 이상 관측되면 여기에 쌓여요.",
+    thPatterns: ["보통 시간", "구분", "편명", "기종", "요일"],
+    daily: "거의 매일", seenDays: (n) => `${n}일 관측`,
+    recentEmpty: "아직 기록이 없어요. 레어 기체가 세 공항에 내리거나 뜨면 여기에 남아요.",
+    thRecent: ["시각", "구분", "편명", "기종", "등록번호"],
+    noData: "데이터를 아직 못 불러왔어요",
+    noDataNotice: "data/schedule.json을 찾지 못했어요. GitHub Actions에서 spot 워크플로를 한 번 실행하면 데이터가 생깁니다.",
+    locale: "ko-KR", dateMonth: "numeric"
+  },
+  en: {
+    loading: "Loading…",
+    todayTitle: "Today's rare movements", nyTime: "New York time",
+    all: "All", arrivals: "Arrivals", departures: "Departures", filterLabel: "Arrivals and departures filter",
+    groundTitle: "On the ground now", groundSub: "your chance to catch the departure",
+    patternsTitle: "Regular rare flights", patternsSub: "learned from the last 3 weeks",
+    recentTitle: "Recent log",
+    footer1: "ETAs come from each airborne flight's route and remaining distance. \"Usual time\" is when the same flight showed up on past days. Delays and cancellations aren't reflected.",
+    dataLabel: "Data:", footer2: "Updated about every 10 minutes by GitHub Actions.",
+    tag: { military: "Military", xl: "Heavy", livery: "Special livery", watch: "Watchlist" },
+    ev: { arr: "ARR", dep: "DEP" },
+    dow: ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"], dowJoin: " ",
+    justNow: "just now", minAgo: (n) => n + " min ago", hAgo: (n) => n + " h ago", dAgo: (n) => n + " d ago",
+    track: "Track", photos: "Photos", flight: "Flight",
+    airborne: (o) => "Airborne" + (o ? ` from ${o}` : ""),
+    landed: "Landed", departed: "Departed", forDest: (d) => ` for ${d}`,
+    unseen: "Not seen today",
+    expected: (d) => "Expected" + (d ? ` · seen on ${d} days` : ""),
+    statusLine: (ago, n, air, p) => `<span>Updated <b>${ago}</b></span><span>Today <b>${n}</b></span><span>Airborne <b>${air}</b></span><span>Regulars <b>${p}</b></span>`,
+    stale: (ago) => `Last update was ${ago}. Check the Actions tab in the GitHub repository to see if the scheduled run stopped.`,
+    noMatch: "Nothing matches this filter.",
+    todayEmpty: "No rare movements found yet today. When an A380, 747 or special livery takes off for New York, its ETA shows up here. After a few days of logging, regular flights are listed ahead of time too.",
+    thToday: ["Time", "", "Airport", "Flight", "Type", "Reg", "Status", ""],
+    tomorrow: "tomorrow", eta: "ETA", usual: "usual time",
+    groundEmpty: "No rare aircraft on the ground at EWR, JFK or LGA right now. When one lands it appears here, along with when it usually leaves.",
+    landedAt: (t) => "Landed " + t, landedUnknown: "Landing time unknown",
+    nextDep: (t, cs) => `Likely departs ${t} · ${cs}`, nextDepUnknown: "Departure time not learned yet",
+    patternsEmpty: "No regular flights learned yet. A rare flight appears here once it has been seen on two or more days.",
+    thPatterns: ["Usual time", "", "Flight", "Type", "Days"],
+    daily: "Almost daily", seenDays: (n) => `seen on ${n} days`,
+    recentEmpty: "Nothing logged yet. Rare landings and takeoffs at the three airports are recorded here.",
+    thRecent: ["When", "", "Flight", "Type", "Reg"],
+    noData: "No data yet",
+    noDataNotice: "Couldn't find data/schedule.json. Run the spot workflow once from the Actions tab on GitHub to create it.",
+    locale: "en-US", dateMonth: "short"
+  }
+};
 const TYPE_NAME = {
   A388: "Airbus A380", B748: "Boeing 747-8", B744: "Boeing 747-400", B742: "Boeing 747-200", B74S: "Boeing 747SP",
   BLCF: "747 Dreamlifter", A346: "Airbus A340-600", A345: "Airbus A340-500", A343: "Airbus A340-300",
@@ -177,64 +262,81 @@ const TYPE_NAME = {
   C17: "C-17 Globemaster III", C5M: "C-5M Super Galaxy", K35R: "KC-135", C130: "C-130", C30J: "C-130J",
   P8: "P-8 Poseidon", V22: "V-22 Osprey", H60: "H-60 Black Hawk", A320: "Airbus A320", B738: "Boeing 737-800"
 };
-const DOW = ["일", "월", "화", "수", "목", "금", "토"];
+
+let lang = "ko";
+try { const saved = localStorage.getItem("spot-lang"); if (saved === "en" || saved === "ko") lang = saved; } catch (e) {}
+const T = () => I18N[lang];
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const hm = (m) => { m = ((m % 1440) + 1440) % 1440; return String(Math.floor(m / 60)).padStart(2, "0") + ":" + String(m % 60).padStart(2, "0"); };
-const nyTime = (ts) => new Date(ts * 1000).toLocaleString("ko-KR", { timeZone: "America/New_York", month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false });
-const tagsHtml = (kinds) => `<span class="tags">${(kinds || []).map((k) => `<span class="tag ${esc(k)}">${TAG_LABEL[k] || esc(k)}</span>`).join("")}</span>`;
+const nyTime = (ts) => new Date(ts * 1000).toLocaleString(T().locale, { timeZone: "America/New_York", month: T().dateMonth, day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false });
+const tagsHtml = (kinds) => `<span class="tags">${(kinds || []).map((k) => `<span class="tag ${esc(k)}">${T().tag[k] || esc(k)}</span>`).join("")}</span>`;
 const typeCell = (x) => `<b class="mono">${esc(x.type || "?")}</b> ${tagsHtml(x.kinds)}<span class="sub">${esc(TYPE_NAME[x.type] || "")}</span>`;
+const thead = (cols) => `<thead><tr>${cols.map((c) => `<th>${c}</th>`).join("")}</tr></thead>`;
 function ago(ts) {
   const m = Math.round((Date.now() / 1000 - ts) / 60);
-  if (m < 1) return "방금";
-  if (m < 60) return m + "분 전";
+  if (m < 1) return T().justNow;
+  if (m < 60) return T().minAgo(m);
   const h = Math.floor(m / 60);
-  return h < 24 ? h + "시간 전" : Math.floor(h / 24) + "일 전";
+  return h < 24 ? T().hAgo(h) : T().dAgo(Math.floor(h / 24));
 }
 const links = (x) => `<span class="links">
-  ${x.hex ? `<a href="https://globe.adsb.lol/?icao=${encodeURIComponent(x.hex)}" target="_blank" rel="noopener">위치</a>` : ""}
-  ${x.reg ? `<a href="https://www.jetphotos.com/registration/${encodeURIComponent(x.reg)}" target="_blank" rel="noopener">사진</a>` : ""}
-  ${x.cs ? `<a href="https://www.flightaware.com/live/flight/${encodeURIComponent(x.cs)}" target="_blank" rel="noopener">편 정보</a>` : ""}
+  ${x.hex ? `<a href="https://globe.adsb.lol/?icao=${encodeURIComponent(x.hex)}" target="_blank" rel="noopener">${T().track}</a>` : ""}
+  ${x.reg ? `<a href="https://www.jetphotos.com/registration/${encodeURIComponent(x.reg)}" target="_blank" rel="noopener">${T().photos}</a>` : ""}
+  ${x.cs ? `<a href="https://www.flightaware.com/live/flight/${encodeURIComponent(x.cs)}" target="_blank" rel="noopener">${T().flight}</a>` : ""}
 </span>`;
 
 let data = null;
+let loadFailed = false;
 let filter = "all";
 try { filter = localStorage.getItem("spot-ev") || "all"; } catch (e) {}
 
 function stateText(s) {
-  if (s.status === "airborne") return `<span class="state airborne">비행 중${s.origin ? " · " + esc(s.origin) + " 출발" : ""}</span>`;
-  if (s.status === "done") return `<span class="state done">${s.ev === "arr" ? "도착함" : "출발함"}${s.dest ? " · " + esc(s.dest) + "행" : ""}</span>`;
-  if (s.status === "unseen") return `<span class="state unseen">오늘은 안 보였어요</span>`;
-  return `<span class="state">예상${s.days ? ` · 최근 ${s.days}일 관측` : ""}</span>`;
+  if (s.status === "airborne") return `<span class="state airborne">${esc(T().airborne(s.origin))}</span>`;
+  if (s.status === "done") return `<span class="state done">${s.ev === "arr" ? T().landed : T().departed}${s.dest ? esc(T().forDest(s.dest)) : ""}</span>`;
+  if (s.status === "unseen") return `<span class="state unseen">${T().unseen}</span>`;
+  return `<span class="state">${T().expected(s.days)}</span>`;
+}
+
+function renderStatic() {
+  document.documentElement.lang = lang;
+  document.querySelectorAll("[data-t]").forEach((el) => { el.textContent = T()[el.dataset.t]; });
+  $("filters").setAttribute("aria-label", T().filterLabel);
+  document.querySelectorAll(".lang button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.lang === lang)));
+  $("today-sub").textContent = data ? `${data.date} · ${T().nyTime}` : T().nyTime;
 }
 
 function renderStatus() {
-  if (!data) return;
+  if (loadFailed) {
+    $("status").textContent = T().noData;
+    $("notice").hidden = false;
+    $("notice").textContent = T().noDataNotice;
+    return;
+  }
+  if (!data) { $("status").textContent = T().loading; return; }
   const air = data.today.filter((s) => s.status === "airborne").length;
-  $("status").innerHTML = `<span>갱신 <b>${ago(data.updated)}</b></span><span>오늘 레어 <b>${data.today.length}</b>편</span><span>비행 중 <b>${air}</b></span><span>학습된 편 <b>${data.patterns.length}</b></span>`;
+  $("status").innerHTML = T().statusLine(ago(data.updated), data.today.length, air, data.patterns.length);
   const stale = (Date.now() / 1000 - data.updated) / 60 > 40;
   $("notice").hidden = !stale;
-  if (stale) $("notice").textContent = `마지막 갱신이 ${ago(data.updated)}이에요. GitHub 저장소의 Actions 탭에서 자동 실행이 멈췄는지 확인해 주세요.`;
+  if (stale) $("notice").textContent = T().stale(ago(data.updated));
 }
 
 function renderToday() {
   document.querySelectorAll("#filters button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.k === filter)));
-  $("today-sub").textContent = `${data.date} · 뉴욕 시간`;
   const rows = data.today.filter((s) => filter === "all" || s.ev === filter);
   if (!rows.length) {
-    $("today").innerHTML = `<div class="empty">${data.today.length ? "이 조건의 편이 없어요." :
-      "오늘 확인된 레어편이 아직 없어요. A380·747 같은 기체가 NYC로 출발하면 바로 여기에 도착 예정 시간이 뜨고, 며칠 기록이 쌓이면 매일 오는 편도 미리 표시돼요."}</div>`;
+    $("today").innerHTML = `<div class="empty">${data.today.length ? T().noMatch : T().todayEmpty}</div>`;
     return;
   }
   $("today").innerHTML = `<div class="table-wrap"><table>
-    <thead><tr><th>시간</th><th>구분</th><th>공항</th><th>편명</th><th>기종</th><th>등록번호</th><th>상태</th><th></th></tr></thead>
+    ${thead(T().thToday)}
     <tbody>${rows.map((s) => {
       const past = (s.status === "done" || s.status === "unseen");
-      const tomorrow = s.min >= 1440;
+      const when = s.min >= 1440 ? T().tomorrow : s.status === "airborne" ? T().eta : s.status === "expected" ? T().usual : "";
       return `<tr class="${past ? "past" : ""}">
-        <td class="time">${hm(s.min)}<span class="sub">${tomorrow ? "내일" : s.status === "airborne" ? "도착 예정" : s.status === "expected" ? "평소 시간" : ""}</span></td>
-        <td><span class="ev ${s.ev}">${EV_LABEL[s.ev]}</span></td>
+        <td class="time">${hm(s.min)}<span class="sub">${when}</span></td>
+        <td><span class="ev ${s.ev}">${T().ev[s.ev]}</span></td>
         <td class="mono">${esc(s.ap)}</td>
         <td class="mono">${esc(s.cs || "—")}</td>
         <td>${typeCell(s)}</td>
@@ -248,15 +350,15 @@ function renderToday() {
 function renderGround() {
   const g = data.ground || [];
   if (!g.length) {
-    $("ground").innerHTML = `<div class="empty">지금 세 공항 지상에 있는 레어 기체는 없어요. 레어 기체가 내리면 여기에 뜨고, 보통 몇 시에 다시 출발하는지도 함께 보여줘요.</div>`;
+    $("ground").innerHTML = `<div class="empty">${T().groundEmpty}</div>`;
     return;
   }
   $("ground").innerHTML = `<div class="cards">${g.map((x) => `
     <article class="card">
       <div class="top"><span class="type">${esc(x.type)}</span><span class="code">${esc(x.ap)}</span></div>
       <div>${tagsHtml(x.kinds)} <span class="mono">${esc(x.reg || "")}</span></div>
-      <div class="sub">${x.since ? "도착 " + nyTime(x.since) : "도착 시간 모름"}${x.cs ? " · " + esc(x.cs) : ""}</div>
-      <div class="next">${x.next_dep ? `출발 예상 ${hm(x.next_dep.min)} · ${esc(x.next_dep.cs)}` : "출발 시간은 아직 학습 전"}</div>
+      <div class="sub">${x.since ? T().landedAt(nyTime(x.since)) : T().landedUnknown}${x.cs ? " · " + esc(x.cs) : ""}</div>
+      <div class="next">${x.next_dep ? esc(T().nextDep(hm(x.next_dep.min), x.next_dep.cs)) : T().nextDepUnknown}</div>
       ${links(x)}
     </article>`).join("")}</div>`;
 }
@@ -264,35 +366,41 @@ function renderGround() {
 function renderPatterns() {
   const p = data.patterns || [];
   if (!p.length) {
-    $("patterns").innerHTML = `<div class="empty">아직 학습된 편이 없어요. 같은 레어편이 이틀 이상 관측되면 여기에 쌓여요.</div>`;
+    $("patterns").innerHTML = `<div class="empty">${T().patternsEmpty}</div>`;
     return;
   }
   $("patterns").innerHTML = `<div class="table-wrap"><table>
-    <thead><tr><th>보통 시간</th><th>구분</th><th>편명</th><th>기종</th><th>요일</th></tr></thead>
+    ${thead(T().thPatterns)}
     <tbody>${p.map((x) => `<tr>
       <td class="mono">${hm(x.min)}<span class="sub">${esc(x.ap)}</span></td>
-      <td><span class="ev ${x.ev}">${EV_LABEL[x.ev]}</span></td>
+      <td><span class="ev ${x.ev}">${T().ev[x.ev]}</span></td>
       <td class="mono">${esc(x.cs)}</td>
       <td>${typeCell(x)}</td>
-      <td>${x.daily ? "거의 매일" : (x.dows || []).map((d) => DOW[d]).join("·")}<span class="sub">${x.days}일 관측</span></td>
+      <td>${x.daily ? T().daily : (x.dows || []).map((d) => T().dow[d]).join(T().dowJoin)}<span class="sub">${T().seenDays(x.days)}</span></td>
     </tr>`).join("")}</tbody></table></div>`;
 }
 
 function renderRecent() {
   const r = data.recent || [];
   if (!r.length) {
-    $("recent").innerHTML = `<div class="empty">아직 기록이 없어요. 레어 기체가 세 공항에 내리거나 뜨면 여기에 남아요.</div>`;
+    $("recent").innerHTML = `<div class="empty">${T().recentEmpty}</div>`;
     return;
   }
   $("recent").innerHTML = `<div class="table-wrap"><table>
-    <thead><tr><th>시각</th><th>구분</th><th>편명</th><th>기종</th><th>등록번호</th></tr></thead>
+    ${thead(T().thRecent)}
     <tbody>${r.map((e) => `<tr>
       <td class="mono">${nyTime(e.ts)}<span class="sub">${esc(e.ap)}</span></td>
-      <td><span class="ev ${e.ev}">${EV_LABEL[e.ev] || esc(e.ev)}</span></td>
+      <td><span class="ev ${e.ev}">${T().ev[e.ev] || esc(e.ev)}</span></td>
       <td class="mono">${esc(e.cs || "—")}</td>
       <td>${typeCell(e)}</td>
       <td class="mono">${esc(e.reg || "—")}</td>
     </tr>`).join("")}</tbody></table></div>`;
+}
+
+function renderAll() {
+  renderStatic();
+  renderStatus();
+  if (data) { renderToday(); renderGround(); renderPatterns(); renderRecent(); }
 }
 
 async function load() {
@@ -300,12 +408,11 @@ async function load() {
     const r = await fetch("data/schedule.json?t=" + Date.now());
     if (!r.ok) throw new Error(r.status);
     data = await r.json();
-    renderStatus(); renderToday(); renderGround(); renderPatterns(); renderRecent();
+    loadFailed = false;
   } catch (e) {
-    $("status").textContent = "데이터를 아직 못 불러왔어요";
-    $("notice").hidden = false;
-    $("notice").textContent = "data/schedule.json을 찾지 못했어요. GitHub Actions에서 spot 워크플로를 한 번 실행하면 데이터가 생깁니다.";
+    loadFailed = !data;
   }
+  renderAll();
 }
 
 $("filters").addEventListener("click", (e) => {
@@ -316,6 +423,15 @@ $("filters").addEventListener("click", (e) => {
   renderToday();
 });
 
+document.querySelector(".lang").addEventListener("click", (e) => {
+  const b = e.target.closest("button");
+  if (!b || b.dataset.lang === lang) return;
+  lang = b.dataset.lang;
+  try { localStorage.setItem("spot-lang", lang); } catch (err) {}
+  renderAll();
+});
+
+renderAll();
 load();
 setInterval(load, 60000);
 setInterval(renderStatus, 15000);

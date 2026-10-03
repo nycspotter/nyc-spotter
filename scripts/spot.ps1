@@ -180,7 +180,13 @@ $start    = if ($null -ne $state.type_cursor) { [int]$state.type_cursor % [Math]
 $watchUrls = @()
 for ($n = 0; $n -lt $perRun; $n++) { $watchUrls += "https://api.adsb.lol/v2/type/$($typeList[($start + $n) % $typeList.Count])" }
 $state.type_cursor = ($start + $perRun) % [Math]::Max($typeList.Count, 1)
-foreach ($r in (@($liveries.Keys) + @($watchRegs.Keys))) { $watchUrls += "https://opendata.adsb.fi/api/v2/registration/$r" }
+$regList  = @((@($liveries.Keys) + @($watchRegs.Keys)) | Sort-Object -Unique)
+if ($regList.Count -gt 0) {
+  $regPerRun = [Math]::Min([int]$cfg.reg_queries_per_run, $regList.Count)
+  $regStart  = if ($null -ne $state.reg_cursor) { [int]$state.reg_cursor % $regList.Count } else { 0 }
+  for ($n = 0; $n -lt $regPerRun; $n++) { $watchUrls += "https://opendata.adsb.fi/api/v2/registration/$($regList[($regStart + $n) % $regList.Count])" }
+  $state.reg_cursor = ($regStart + $regPerRun) % $regList.Count
+}
 
 $worldAc = @{}
 foreach ($u in $watchUrls) {
