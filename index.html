@@ -156,6 +156,8 @@ tr.past td { opacity: .55; }
 .rwy-src { margin-top: 8px; }
 .rwy-map { width: 100%; height: auto; display: block; background: var(--bg); border-radius: 6px; }
 .rwy-map .rl { font: 700 10px/1 var(--mono); fill: var(--ink); text-anchor: middle; dominant-baseline: middle; }
+.rwy-map .rw { stroke: var(--muted); stroke-opacity: .45; stroke-width: 6; }
+.rwy-map .rw.on { stroke: var(--ink); stroke-opacity: 1; }
 .rwy-map .ra, .map-legend .lg.ra { stroke: var(--arr); background: var(--arr); }
 .rwy-map .rd, .map-legend .lg.rd { stroke: var(--dep); background: var(--dep); }
 .rwy-map .ra, .rwy-map .rd { stroke-width: 2.5; }
@@ -694,7 +696,8 @@ function runwayMap(code, r, pins) {
     const [x1, y1] = tx(la, loa), [x2, y2] = tx(lb, lob);
     const len = Math.hypot(x2 - x1, y2 - y1) || 1, ux = (x2 - x1) / len, uy = (y2 - y1) / len;
     const active = arrIn(a) || arrIn(b) || depIn(a) || depIn(b);
-    svg += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${active ? "var(--ink)" : "var(--muted)"}" stroke-opacity="${active ? 1 : .45}" stroke-width="6" stroke-linecap="butt"/>`;
+    // colors go through CSS classes: Safari ignores var() inside SVG presentation attributes
+    svg += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" class="rw${active ? " on" : ""}"/>`;
     // end labels sit just outside each threshold
     svg += `<text x="${x1 - ux * 13}" y="${y1 - uy * 13}" class="rl">${a}</text><text x="${x2 + ux * 13}" y="${y2 + uy * 13}" class="rl">${b}</text>`;
     // landing on an end: arrow comes in from outside toward that threshold; departing: arrow leaves past the far end
