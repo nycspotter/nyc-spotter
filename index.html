@@ -1,0 +1,324 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>NYC Spotter Board</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;700&family=JetBrains+Mono:wght@400;600&family=Noto+Sans+KR:wght@400;500;700&display=swap">
+<style>
+/* Layout: airport wayfinding signage. Yellow sign strip, today's rare schedule as the main board, supporting lists below. */
+:root {
+  --bg: #eceff2;
+  --panel: #ffffff;
+  --ink: #12161c;
+  --muted: #5a6370;
+  --line: #d4d9df;
+  --sign: #ffc20e;
+  --sign-ink: #12161c;
+  --mil: #4f6125;  --mil-bg: #e7edd8;
+  --xl: #6b3fb8;   --xl-bg: #ece4fa;
+  --liv: #b8185f;  --liv-bg: #fbe2ee;
+  --watch: #1d64c4; --watch-bg: #e0ecfb;
+  --arr: #1d64c4; --dep: #1a7f4b;
+  --live: #b34700; --live-bg: #fff0e0;
+  --display: "Barlow Condensed", "Arial Narrow", "Roboto Condensed", sans-serif;
+  --body: "Noto Sans KR", "Malgun Gothic", "Apple SD Gothic Neo", system-ui, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e1115; --panel: #171b21; --ink: #e8ebee; --muted: #97a1ad; --line: #2a3139;
+    --mil: #b3c77f;  --mil-bg: #263016;
+    --xl: #c2a6f5;   --xl-bg: #2c2140;
+    --liv: #f48bbb;  --liv-bg: #3d1a2b;
+    --watch: #86b6f6; --watch-bg: #172a45;
+    --arr: #86b6f6; --dep: #6fd29d;
+    --live: #ffb070; --live-bg: #3a2512;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e1115; --panel: #171b21; --ink: #e8ebee; --muted: #97a1ad; --line: #2a3139;
+  --mil: #b3c77f;  --mil-bg: #263016;
+  --xl: #c2a6f5;   --xl-bg: #2c2140;
+  --liv: #f48bbb;  --liv-bg: #3d1a2b;
+  --watch: #86b6f6; --watch-bg: #172a45;
+  --arr: #86b6f6; --dep: #6fd29d;
+  --live: #ffb070; --live-bg: #3a2512;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.55 var(--body); }
+a { color: inherit; }
+a:focus-visible, button:focus-visible { outline: 2px solid var(--sign); outline-offset: 2px; }
+
+.sign { background: var(--sign); color: var(--sign-ink); padding: calc(env(safe-area-inset-top, 0px) + 14px) 16px 14px; }
+.sign-inner, main, footer { max-width: 1180px; margin: 0 auto; }
+.sign-inner { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px 24px; }
+.brand { font: 700 clamp(26px, 4vw, 36px)/1 var(--display); letter-spacing: .04em; text-transform: uppercase; margin: 0; }
+.brand span { font-weight: 500; opacity: .7; }
+.status { font: 500 14px/1.3 var(--body); display: flex; gap: 6px 14px; flex-wrap: wrap; }
+.status b { font-family: var(--mono); font-weight: 600; }
+
+main { padding: 24px 16px 8px; display: grid; gap: 36px; }
+section > h2 {
+  font: 700 22px/1.1 var(--display); letter-spacing: .06em; text-transform: uppercase;
+  margin: 0 0 12px; display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; text-wrap: balance;
+}
+section > h2 small { font: 400 13px/1.3 var(--body); letter-spacing: 0; text-transform: none; color: var(--muted); }
+.notice { background: var(--live-bg); color: var(--live); padding: 10px 14px; border-radius: 6px; font-weight: 500; }
+.empty { background: var(--panel); border: 1px dashed var(--line); border-radius: 8px; padding: 18px; color: var(--muted); max-width: 70ch; }
+
+.tags { display: inline-flex; flex-wrap: wrap; gap: 4px; vertical-align: middle; }
+.tag { font: 700 11px/1 var(--body); letter-spacing: .04em; padding: 4px 7px; border-radius: 999px; white-space: nowrap; }
+.tag.military { color: var(--mil); background: var(--mil-bg); }
+.tag.xl { color: var(--xl); background: var(--xl-bg); }
+.tag.livery { color: var(--liv); background: var(--liv-bg); }
+.tag.watch { color: var(--watch); background: var(--watch-bg); }
+
+.filters { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.filters button {
+  font: 500 13px/1 var(--body); padding: 8px 14px; border-radius: 999px; cursor: pointer;
+  border: 1px solid var(--line); background: var(--panel); color: var(--ink);
+}
+.filters button[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+
+/* departure-board table */
+.table-wrap { overflow-x: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; }
+table { width: 100%; border-collapse: collapse; font-size: 14px; }
+th, td { text-align: left; padding: 11px 14px; border-bottom: 1px solid var(--line); vertical-align: middle; white-space: nowrap; }
+th { font: 700 11px/1 var(--body); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+tbody tr:last-child td { border-bottom: 0; }
+.mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.sub { display: block; color: var(--muted); font-size: 12px; }
+td.time { font: 700 24px/1 var(--display); letter-spacing: .03em; font-variant-numeric: tabular-nums; }
+td.time .sub { font: 400 11px/1.4 var(--body); letter-spacing: 0; margin-top: 3px; }
+tr.past td { opacity: .55; }
+.ev { font: 700 11px/1 var(--body); padding: 5px 8px; border-radius: 4px; border: 1px solid currentColor; }
+.ev.arr { color: var(--arr); } .ev.dep { color: var(--dep); }
+.state { font-weight: 500; }
+.state.airborne { color: var(--live); }
+.state.done, .state.unseen { color: var(--muted); }
+.links { display: flex; gap: 12px; font-size: 13px; }
+.links a { color: var(--muted); text-decoration: underline; text-underline-offset: 3px; }
+.links a:hover { color: var(--ink); }
+
+/* on the ground now */
+.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr)); gap: 12px; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; display: grid; gap: 6px; min-width: 0; }
+.card .top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.card .type { font: 700 28px/1 var(--display); }
+.code { background: var(--sign); color: var(--sign-ink); font: 700 18px/1 var(--display); letter-spacing: .05em; padding: 4px 7px 3px; border-radius: 3px; }
+.card .next { font-weight: 500; }
+
+.two { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 36px; }
+@media (max-width: 900px) { .two { grid-template-columns: minmax(0, 1fr); } }
+
+footer { padding: 24px 16px calc(env(safe-area-inset-bottom, 0px) + 32px); color: var(--muted); font-size: 13px; }
+footer p { margin: 4px 0; max-width: 75ch; }
+</style>
+</head>
+<body>
+<div class="sign">
+  <div class="sign-inner">
+    <h1 class="brand">NYC Spotter Board <span>EWR · JFK · LGA</span></h1>
+    <div class="status" id="status">불러오는 중…</div>
+  </div>
+</div>
+
+<main>
+  <div class="notice" id="notice" hidden></div>
+
+  <section aria-labelledby="h-today">
+    <h2 id="h-today">오늘의 레어 스케줄 <small id="today-sub">뉴욕 시간</small></h2>
+    <div class="filters" id="filters" role="group" aria-label="도착 출발 필터">
+      <button type="button" data-k="all" aria-pressed="true">전체</button>
+      <button type="button" data-k="arr" aria-pressed="false">도착</button>
+      <button type="button" data-k="dep" aria-pressed="false">출발</button>
+    </div>
+    <div id="today"></div>
+  </section>
+
+  <section aria-labelledby="h-ground">
+    <h2 id="h-ground">지금 공항에 있는 레어 <small>출발 사진 찍을 기회</small></h2>
+    <div id="ground"></div>
+  </section>
+
+  <div class="two">
+    <section aria-labelledby="h-patterns">
+      <h2 id="h-patterns">자주 오는 레어편 <small>최근 3주 관측으로 학습</small></h2>
+      <div id="patterns"></div>
+    </section>
+    <section aria-labelledby="h-recent">
+      <h2 id="h-recent">최근 기록</h2>
+      <div id="recent"></div>
+    </section>
+  </div>
+</main>
+
+<footer>
+  <p>도착 예정은 비행 중인 기체의 편명 노선과 남은 거리로 계산하고, "예상"은 지난 기록에서 같은 편이 보통 오던 시간이에요. 실제와 다를 수 있어요.</p>
+  <p>데이터: <a href="https://adsb.lol" target="_blank" rel="noopener">adsb.lol</a> (ODbL), <a href="https://adsb.fi" target="_blank" rel="noopener">adsb.fi</a>, 노선 <a href="https://www.adsbdb.com" target="_blank" rel="noopener">adsbdb</a>. GitHub Actions가 약 10분마다 갱신해요.</p>
+</footer>
+
+<script>
+const TAG_LABEL = { military: "군용", xl: "대형기", livery: "특별 도장", watch: "관심" };
+const EV_LABEL = { arr: "도착", dep: "출발" };
+const TYPE_NAME = {
+  A388: "Airbus A380", B748: "Boeing 747-8", B744: "Boeing 747-400", B742: "Boeing 747-200", B74S: "Boeing 747SP",
+  BLCF: "747 Dreamlifter", A346: "Airbus A340-600", A345: "Airbus A340-500", A343: "Airbus A340-300",
+  A124: "Antonov An-124", A225: "Antonov An-225", AN22: "Antonov An-22", A3ST: "Airbus Beluga", A337: "Airbus BelugaXL",
+  MD11: "MD-11", DC10: "DC-10", IL96: "Il-96", IL76: "Il-76",
+  C17: "C-17 Globemaster III", C5M: "C-5M Super Galaxy", K35R: "KC-135", C130: "C-130", C30J: "C-130J",
+  P8: "P-8 Poseidon", V22: "V-22 Osprey", H60: "H-60 Black Hawk", A320: "Airbus A320", B738: "Boeing 737-800"
+};
+const DOW = ["일", "월", "화", "수", "목", "금", "토"];
+
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const hm = (m) => { m = ((m % 1440) + 1440) % 1440; return String(Math.floor(m / 60)).padStart(2, "0") + ":" + String(m % 60).padStart(2, "0"); };
+const nyTime = (ts) => new Date(ts * 1000).toLocaleString("ko-KR", { timeZone: "America/New_York", month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false });
+const tagsHtml = (kinds) => `<span class="tags">${(kinds || []).map((k) => `<span class="tag ${esc(k)}">${TAG_LABEL[k] || esc(k)}</span>`).join("")}</span>`;
+const typeCell = (x) => `<b class="mono">${esc(x.type || "?")}</b> ${tagsHtml(x.kinds)}<span class="sub">${esc(TYPE_NAME[x.type] || "")}</span>`;
+function ago(ts) {
+  const m = Math.round((Date.now() / 1000 - ts) / 60);
+  if (m < 1) return "방금";
+  if (m < 60) return m + "분 전";
+  const h = Math.floor(m / 60);
+  return h < 24 ? h + "시간 전" : Math.floor(h / 24) + "일 전";
+}
+const links = (x) => `<span class="links">
+  ${x.hex ? `<a href="https://globe.adsb.lol/?icao=${encodeURIComponent(x.hex)}" target="_blank" rel="noopener">위치</a>` : ""}
+  ${x.reg ? `<a href="https://www.jetphotos.com/registration/${encodeURIComponent(x.reg)}" target="_blank" rel="noopener">사진</a>` : ""}
+  ${x.cs ? `<a href="https://www.flightaware.com/live/flight/${encodeURIComponent(x.cs)}" target="_blank" rel="noopener">편 정보</a>` : ""}
+</span>`;
+
+let data = null;
+let filter = "all";
+try { filter = localStorage.getItem("spot-ev") || "all"; } catch (e) {}
+
+function stateText(s) {
+  if (s.status === "airborne") return `<span class="state airborne">비행 중${s.origin ? " · " + esc(s.origin) + " 출발" : ""}</span>`;
+  if (s.status === "done") return `<span class="state done">${s.ev === "arr" ? "도착함" : "출발함"}${s.dest ? " · " + esc(s.dest) + "행" : ""}</span>`;
+  if (s.status === "unseen") return `<span class="state unseen">오늘은 안 보였어요</span>`;
+  return `<span class="state">예상${s.days ? ` · 최근 ${s.days}일 관측` : ""}</span>`;
+}
+
+function renderStatus() {
+  if (!data) return;
+  const air = data.today.filter((s) => s.status === "airborne").length;
+  $("status").innerHTML = `<span>갱신 <b>${ago(data.updated)}</b></span><span>오늘 레어 <b>${data.today.length}</b>편</span><span>비행 중 <b>${air}</b></span><span>학습된 편 <b>${data.patterns.length}</b></span>`;
+  const stale = (Date.now() / 1000 - data.updated) / 60 > 40;
+  $("notice").hidden = !stale;
+  if (stale) $("notice").textContent = `마지막 갱신이 ${ago(data.updated)}이에요. GitHub 저장소의 Actions 탭에서 자동 실행이 멈췄는지 확인해 주세요.`;
+}
+
+function renderToday() {
+  document.querySelectorAll("#filters button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.k === filter)));
+  $("today-sub").textContent = `${data.date} · 뉴욕 시간`;
+  const rows = data.today.filter((s) => filter === "all" || s.ev === filter);
+  if (!rows.length) {
+    $("today").innerHTML = `<div class="empty">${data.today.length ? "이 조건의 편이 없어요." :
+      "오늘 확인된 레어편이 아직 없어요. A380·747 같은 기체가 NYC로 출발하면 바로 여기에 도착 예정 시간이 뜨고, 며칠 기록이 쌓이면 매일 오는 편도 미리 표시돼요."}</div>`;
+    return;
+  }
+  $("today").innerHTML = `<div class="table-wrap"><table>
+    <thead><tr><th>시간</th><th>구분</th><th>공항</th><th>편명</th><th>기종</th><th>등록번호</th><th>상태</th><th></th></tr></thead>
+    <tbody>${rows.map((s) => {
+      const past = (s.status === "done" || s.status === "unseen");
+      const tomorrow = s.min >= 1440;
+      return `<tr class="${past ? "past" : ""}">
+        <td class="time">${hm(s.min)}<span class="sub">${tomorrow ? "내일" : s.status === "airborne" ? "도착 예정" : s.status === "expected" ? "평소 시간" : ""}</span></td>
+        <td><span class="ev ${s.ev}">${EV_LABEL[s.ev]}</span></td>
+        <td class="mono">${esc(s.ap)}</td>
+        <td class="mono">${esc(s.cs || "—")}</td>
+        <td>${typeCell(s)}</td>
+        <td class="mono">${esc(s.reg || "—")}</td>
+        <td>${stateText(s)}</td>
+        <td>${links(s)}</td>
+      </tr>`;
+    }).join("")}</tbody></table></div>`;
+}
+
+function renderGround() {
+  const g = data.ground || [];
+  if (!g.length) {
+    $("ground").innerHTML = `<div class="empty">지금 세 공항 지상에 있는 레어 기체는 없어요. 레어 기체가 내리면 여기에 뜨고, 보통 몇 시에 다시 출발하는지도 함께 보여줘요.</div>`;
+    return;
+  }
+  $("ground").innerHTML = `<div class="cards">${g.map((x) => `
+    <article class="card">
+      <div class="top"><span class="type">${esc(x.type)}</span><span class="code">${esc(x.ap)}</span></div>
+      <div>${tagsHtml(x.kinds)} <span class="mono">${esc(x.reg || "")}</span></div>
+      <div class="sub">${x.since ? "도착 " + nyTime(x.since) : "도착 시간 모름"}${x.cs ? " · " + esc(x.cs) : ""}</div>
+      <div class="next">${x.next_dep ? `출발 예상 ${hm(x.next_dep.min)} · ${esc(x.next_dep.cs)}` : "출발 시간은 아직 학습 전"}</div>
+      ${links(x)}
+    </article>`).join("")}</div>`;
+}
+
+function renderPatterns() {
+  const p = data.patterns || [];
+  if (!p.length) {
+    $("patterns").innerHTML = `<div class="empty">아직 학습된 편이 없어요. 같은 레어편이 이틀 이상 관측되면 여기에 쌓여요.</div>`;
+    return;
+  }
+  $("patterns").innerHTML = `<div class="table-wrap"><table>
+    <thead><tr><th>보통 시간</th><th>구분</th><th>편명</th><th>기종</th><th>요일</th></tr></thead>
+    <tbody>${p.map((x) => `<tr>
+      <td class="mono">${hm(x.min)}<span class="sub">${esc(x.ap)}</span></td>
+      <td><span class="ev ${x.ev}">${EV_LABEL[x.ev]}</span></td>
+      <td class="mono">${esc(x.cs)}</td>
+      <td>${typeCell(x)}</td>
+      <td>${x.daily ? "거의 매일" : (x.dows || []).map((d) => DOW[d]).join("·")}<span class="sub">${x.days}일 관측</span></td>
+    </tr>`).join("")}</tbody></table></div>`;
+}
+
+function renderRecent() {
+  const r = data.recent || [];
+  if (!r.length) {
+    $("recent").innerHTML = `<div class="empty">아직 기록이 없어요. 레어 기체가 세 공항에 내리거나 뜨면 여기에 남아요.</div>`;
+    return;
+  }
+  $("recent").innerHTML = `<div class="table-wrap"><table>
+    <thead><tr><th>시각</th><th>구분</th><th>편명</th><th>기종</th><th>등록번호</th></tr></thead>
+    <tbody>${r.map((e) => `<tr>
+      <td class="mono">${nyTime(e.ts)}<span class="sub">${esc(e.ap)}</span></td>
+      <td><span class="ev ${e.ev}">${EV_LABEL[e.ev] || esc(e.ev)}</span></td>
+      <td class="mono">${esc(e.cs || "—")}</td>
+      <td>${typeCell(e)}</td>
+      <td class="mono">${esc(e.reg || "—")}</td>
+    </tr>`).join("")}</tbody></table></div>`;
+}
+
+async function load() {
+  try {
+    const r = await fetch("data/schedule.json?t=" + Date.now());
+    if (!r.ok) throw new Error(r.status);
+    data = await r.json();
+    renderStatus(); renderToday(); renderGround(); renderPatterns(); renderRecent();
+  } catch (e) {
+    $("status").textContent = "데이터를 아직 못 불러왔어요";
+    $("notice").hidden = false;
+    $("notice").textContent = "data/schedule.json을 찾지 못했어요. GitHub Actions에서 spot 워크플로를 한 번 실행하면 데이터가 생깁니다.";
+  }
+}
+
+$("filters").addEventListener("click", (e) => {
+  const b = e.target.closest("button");
+  if (!b || !data) return;
+  filter = b.dataset.k;
+  try { localStorage.setItem("spot-ev", filter); } catch (err) {}
+  renderToday();
+});
+
+load();
+setInterval(load, 60000);
+setInterval(renderStatus, 15000);
+</script>
+</body>
+</html>

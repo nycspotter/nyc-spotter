@@ -1,0 +1,85 @@
+{
+  "center": { "lat": 40.70, "lon": -73.95 },
+  "local_radius_nm": 40,
+  "airport_radius_nm": 8,
+  "overhead_radius_nm": 40,
+  "overhead_max_alt_ft": 18000,
+  "pattern_days": 21,
+  "remind_before_min": 60,
+  "digest_hour": 7,
+  "max_route_lookups_per_run": 40,
+  "type_queries_per_run": 4,
+  "max_alerts_per_run": 6,
+  "alert_kinds": ["military", "xl", "livery", "watch"],
+
+  "airports": [
+    { "code": "EWR", "name": "Newark Liberty", "lat": 40.6925, "lon": -74.1687 },
+    { "code": "JFK", "name": "John F. Kennedy", "lat": 40.6413, "lon": -73.7781 },
+    { "code": "LGA", "name": "LaGuardia", "lat": 40.7769, "lon": -73.8740 }
+  ],
+
+  "xl_types": {
+    "A388": "Airbus A380",
+    "B748": "Boeing 747-8",
+    "B744": "Boeing 747-400",
+    "B742": "Boeing 747-200",
+    "B74S": "Boeing 747SP",
+    "BLCF": "747 Dreamlifter",
+    "A346": "Airbus A340-600",
+    "A345": "Airbus A340-500",
+    "A343": "Airbus A340-300",
+    "A124": "Antonov An-124",
+    "A225": "Antonov An-225",
+    "AN22": "Antonov An-22",
+    "A3ST": "Airbus Beluga",
+    "A337": "Airbus BelugaXL",
+    "MD11": "McDonnell Douglas MD-11",
+    "DC10": "McDonnell Douglas DC-10",
+    "IL96": "Ilyushin Il-96",
+    "IL76": "Ilyushin Il-76"
+  },
+
+  "military_types": {
+    "C17": "C-17 Globemaster III",
+    "C5M": "C-5M Super Galaxy",
+    "K35R": "KC-135 Stratotanker",
+    "C130": "C-130 Hercules",
+    "C30J": "C-130J Super Hercules",
+    "B52": "B-52 Stratofortress",
+    "B1": "B-1 Lancer",
+    "B2": "B-2 Spirit",
+    "P8": "P-8 Poseidon",
+    "E3TF": "E-3 Sentry (AWACS)",
+    "E6": "E-6 Mercury",
+    "V22": "V-22 Osprey",
+    "H60": "H-60 Black Hawk",
+    "F16": "F-16 Fighting Falcon",
+    "F15": "F-15 Eagle",
+    "F35": "F-35 Lightning II",
+    "A10": "A-10 Thunderbolt II",
+    "T38": "T-38 Talon",
+    "A400": "Airbus A400M"
+  },
+
+  "military_callsign_prefixes": {
+    "RCH": "Reach (미 공군 수송)",
+    "SAM": "Special Air Mission",
+    "AF1": "Air Force One",
+    "AF2": "Air Force Two",
+    "VENUS": "VIP 수송",
+    "SPAR": "VIP 수송",
+    "EXEC": "VIP 수송",
+    "PAT": "미 육군 수송",
+    "CNV": "미 해군 수송",
+    "CFC": "캐나다 공군",
+    "RRR": "영국 공군"
+  },
+
+  "special_liveries": {
+    "N763JB": "JetBlue RetroJet (1960년대 스타일)",
+    "N915NN": "American TWA 헤리티지"
+  },
+
+  "watch_types": {},
+  "watch_registrations": {}
+}
