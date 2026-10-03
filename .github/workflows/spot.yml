@@ -4,6 +4,8 @@ on:
   schedule:
     - cron: '*/10 * * * *'   # every 10 min (GitHub may delay runs a few minutes)
   workflow_dispatch:          # "Run workflow" button for a manual refresh
+  push:
+    branches: [main]          # rebuild the site right after a change is pushed
 
 permissions:
   contents: write   # force-push the data branch
