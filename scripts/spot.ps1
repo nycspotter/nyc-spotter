@@ -330,8 +330,17 @@ foreach ($k in $groups.Keys) {
 
 # ---------- 4. today's schedule ----------
 $sched = New-Object System.Collections.ArrayList
-function Find-Sched($ev, $ap, $cs) {
+function Find-Sched($ev, $ap, $cs, $type = $null, $min = $null) {
   foreach ($s in $sched) { if ($s.ev -eq $ev -and $s.ap -eq $ap -and $s.cs -eq $cs) { return $s } }
+  # Same flight under a different callsign (e.g. UAE201 one day, UAE8ER the next):
+  # match an expected entry with the same airline, airport, type and a time within 2 hours.
+  if ($type -and $null -ne $min -and $cs -and $cs.Length -ge 3) {
+    $airline = $cs.Substring(0, 3)
+    foreach ($s in $sched) {
+      if ($s.ev -eq $ev -and $s.ap -eq $ap -and $s.type -eq $type -and $s.status -eq 'expected' -and
+          $s.cs -and $s.cs.StartsWith($airline) -and [Math]::Abs([int]$s.min - [int]$min) -le 120) { return $s }
+    }
+  }
   return $null
 }
 function New-Sched($ev, $ap, $x, $min, $status, $source) {
@@ -350,16 +359,16 @@ foreach ($p in $patterns) {
 }
 foreach ($e in $events) {
   if ([int]$e.day -ne $today) { continue }
-  $s = Find-Sched $e.ev $e.ap $e.cs
+  $s = Find-Sched $e.ev $e.ap $e.cs $e.type ([int]$e.min)
   if (-not $s) { $s = New-Sched $e.ev $e.ap $e ([int]$e.min) 'done' 'seen' }
-  $s.status = 'done'; $s.min = [int]$e.min; $s.reg = $e.reg; $s.hex = $e.hex
+  $s.status = 'done'; $s.min = [int]$e.min; $s.reg = $e.reg; $s.hex = $e.hex; $s.cs = $e.cs
 }
 foreach ($b in $inbound) {
   $etaNy  = Get-NyTime $b.eta
   $etaMin = $etaNy.Hour * 60 + $etaNy.Minute + $(if ((Get-DayKey $etaNy) -ne $today) { 1440 } else { 0 })
-  $s = Find-Sched 'arr' $b.ap $b.cs
+  $s = Find-Sched 'arr' $b.ap $b.cs $b.type $etaMin
   if (-not $s) { $s = New-Sched 'arr' $b.ap $b $etaMin 'airborne' 'live' }
-  if ($s.status -ne 'done') { $s.status = 'airborne'; $s.min = $etaMin; $s.eta = $b.eta }
+  if ($s.status -ne 'done') { $s.status = 'airborne'; $s.min = $etaMin; $s.eta = $b.eta; $s.cs = $b.cs }
   $s.origin = $b.origin; $s.reg = $b.reg; $s.hex = $b.hex
 }
 foreach ($o in $outbound) {
