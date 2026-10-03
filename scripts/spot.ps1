@@ -426,9 +426,10 @@ function Set-PlanKinds($item) {
   $item.note  = Get-NoteText $tags
 }
 
-function Get-Fids($code, $date) {
+$fidsWindows = @{ all = @(@('00:00', '11:59'), @('12:00', '23:59')); pm = @(, @('12:00', '23:59')) }
+function Get-Fids($code, $date, $windows = 'all') {
   $items = New-Object System.Collections.ArrayList
-  foreach ($w in @(@('00:00', '11:59'), @('12:00', '23:59'))) {
+  foreach ($w in $fidsWindows[$windows]) {
     if ([int]$plan.usage[$monthKey] -ge [int]$sc.monthly_call_budget) { Write-Warning 'AeroDataBox monthly call budget reached'; return $null }
     $plan.usage[$monthKey] = [int]$plan.usage[$monthKey] + 1
     $url = "https://aerodatabox.p.rapidapi.com/flights/airports/iata/$code/${date}T$($w[0])/${date}T$($w[1])" +
@@ -479,22 +480,45 @@ if ($sc -and $env:AERODATABOX_KEY) {
     $jobs = @()
     foreach ($slot in @($sc.fetch_plan)) {
       $slotKey = "$code|$todayStr|$($slot.hour)"
-      if ($ny.Hour -ge [int]$slot.hour -and -not $plan.slots.ContainsKey($slotKey)) { $jobs += @{ key = $slotKey; offset = [int]$slot.day_offset } }
+      $win = if ($slot.window) { "$($slot.window)" } else { 'all' }
+      if ($ny.Hour -ge [int]$slot.hour -and -not $plan.slots.ContainsKey($slotKey)) { $jobs += @{ key = $slotKey; offset = [int]$slot.day_offset; window = $win } }
     }
-    # first run of the day without data: fetch today right away
-    if (-not $plan.days.ContainsKey("$code|$todayStr") -and -not ($jobs | Where-Object { $_.offset -eq 0 })) {
-      $jobs += @{ key = "$code|$todayStr|boot"; offset = 0 }
+    # Today: run at most one fetch per run. With no data yet for today, fetch the full day right away
+    # (an afternoon-only refresh needs the morning already stored); other due slots are just marked done.
+    $todayJobs = @($jobs | Where-Object { $_.offset -eq 0 })
+    $laterJobs = @($jobs | Where-Object { $_.offset -ne 0 })
+    $haveToday = $plan.days.ContainsKey("$code|$todayStr")
+    if (-not $haveToday -and $todayJobs.Count -eq 0) { $todayJobs = @(@{ key = "$code|$todayStr|boot"; offset = 0; window = 'all' }) }
+    $jobs = $laterJobs
+    if ($todayJobs.Count) {
+      $run = $todayJobs[-1]
+      if (-not $haveToday -or ($todayJobs | Where-Object { $_.window -eq 'all' })) { $run.window = 'all' }
+      foreach ($j in $todayJobs) { if (-not [object]::ReferenceEquals($j, $run)) { $plan.slots[$j.key] = $now } }
+      $jobs = @($run) + $laterJobs
     }
     foreach ($job in $jobs) {
       # after a failed fetch, wait an hour before trying that slot again
       $failKey = "fail|$($job.key)"
       if ($plan.slots.ContainsKey($failKey) -and ($now - [long]$plan.slots[$failKey]) -lt 3600) { continue }
       $date = $ny.AddDays($job.offset).ToString('yyyy-MM-dd', $inv)
-      $flights = Get-Fids $code $date
+      $dayKey = "$code|$date"
+      $flights = Get-Fids $code $date $job.window
       if ($null -eq $flights) { $plan.slots[$failKey] = $now; continue }
       $plan.slots[$job.key] = $now
-      $plan.days["$code|$date"] = [ordered]@{ fetched = $now; flights = $flights }
-      Send-PlanDigest $code $date $flights $(if ($job.offset -eq 0) { '오늘' } else { '내일' })
+      if ($job.window -eq 'pm' -and $plan.days.ContainsKey($dayKey)) {
+        # afternoon refresh: replace 12:00-23:59, keep the morning, and only announce flights that just became rare
+        $old = @($plan.days[$dayKey].flights)
+        $rareKey = { param($x) "$($x.ev)|$($x.num)|$($x.type)" }
+        $oldRare = @{}; foreach ($x in $old) { if (@($x.kinds).Count) { $oldRare[(& $rareKey $x)] = 1 } }
+        $flights = @($flights | Where-Object { [int]$_.min -ge 720 })
+        $merged = @($old | Where-Object { [int]$_.min -lt 720 }) + $flights
+        $plan.days[$dayKey] = [ordered]@{ fetched = $now; flights = @($merged | Sort-Object { [int]$_.min }) }
+        $newRare = @($flights | Where-Object { @($_.kinds).Count -and -not $oldRare.ContainsKey((& $rareKey $_)) })
+        if ($newRare.Count) { Send-PlanDigest $code $date $newRare "$($job.key.Split('|')[2])시 업데이트: 새로 생긴" }
+      } else {
+        $plan.days[$dayKey] = [ordered]@{ fetched = $now; flights = $flights }
+        Send-PlanDigest $code $date $flights $(if ($job.offset -eq 0) { '오늘' } else { '내일' })
+      }
     }
   }
 }

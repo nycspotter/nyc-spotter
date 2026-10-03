@@ -137,12 +137,15 @@ tr.past td { opacity: .55; }
 .date-bar #d-prev, .date-bar #d-next { font-size: 20px; padding: 0; }
 .date-bar button:disabled { opacity: .4; cursor: default; }
 .date-bar input { padding: 0 10px; font-family: var(--mono); }
-.star { text-decoration: none; color: var(--muted); font-size: 16px; line-height: 1; margin-left: 4px; }
-.star:hover { color: var(--star); }
-.star.on { color: var(--star); }
-.watch-list { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; font-size: 13px; margin-bottom: 10px; }
-.watch-list a { color: var(--ink); text-decoration: none; border: 1px solid var(--line); border-radius: 999px; padding: 4px 10px; }
-.watch-list a .star { margin: 0 4px 0 0; }
+/* watch pills: outlined "+관심" to add, filled "관심" badge when watched */
+a.wpill { text-decoration: none; }
+a.wpill:hover { outline: 1px solid var(--watch); }
+.wadd {
+  display: inline-block; font: 700 11px/1 var(--body); letter-spacing: .04em; padding: 3px 7px; border-radius: 999px;
+  color: var(--watch); border: 1px dashed var(--watch); text-decoration: none; white-space: nowrap; opacity: .75;
+}
+.wadd:hover, .wadd:focus-visible { opacity: 1; background: var(--watch-bg); }
+.watch-list { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; font-size: 13px; margin-bottom: 10px; }
 .star-help { font-size: 12px; color: var(--muted); margin: 8px 0 0; }
 .plan-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-bottom: 12px; }
 .plan-bar .filters { margin-bottom: 0; }
@@ -323,7 +326,8 @@ const I18N = {
     planRare: "레어만", planAll: "전체 예정편", planSearch: "편명·기종·항공사·등록번호 검색 (예: A346, LH400)",
     scheduled: "예정", fromTo: (ev, o) => o ? (ev === "arr" ? ` · ${o}발` : ` · ${o}행`) : "", revised: (t) => ` · 변경 ${t}`,
     scheduleLabel: "예정 스케줄:", usage: (c, b) => `이번 달 조회 ${c}/${b}회`,
-    starHelp: "☆를 누르면 GitHub 화면이 열려요. Submit을 누르면 다음 갱신(최대 10분) 때 ★로 바뀌고 요약·1시간 전 알림 대상이 돼요. ★를 눌러 Close issue 하면 해제돼요.",
+    starHelp: "＋관심(편) 또는 ＋기종 관심을 누르면 GitHub 화면이 열려요. Submit을 누르면 다음 갱신(최대 10분) 때 관심 배지로 바뀌고 요약·1시간 전 알림 대상이 돼요. 관심 배지를 눌러 Close issue 하면 해제돼요.",
+    addLabel: { flight: "관심", type: "기종 관심", reg: "기체 관심" },
     starTitle: { flight: "이 편 관심 등록", type: "이 기종 관심 등록", reg: "이 기체 관심 등록" }, unstar: "관심 해제 (GitHub에서 Close issue)",
     myWatch: "내 관심:", issueBody: "NYC Spotter Board 관심 목록이에요. 이 이슈를 닫으면 관심에서 빠져요.",
     futureEmpty: "이 날 예상되는 레어편이 없어요. 학습된 정기편이 적으면 비어 있을 수 있고, 기록이 쌓일수록 정확해져요.",
@@ -380,7 +384,8 @@ const I18N = {
     planRare: "Rare only", planAll: "All scheduled", planSearch: "Search flight, type, airline, reg (e.g. A346, LH400)",
     scheduled: "Scheduled", fromTo: (ev, o) => o ? (ev === "arr" ? ` · from ${o}` : ` · to ${o}`) : "", revised: (t) => ` · now ${t}`,
     scheduleLabel: "Schedules:", usage: (c, b) => `${c}/${b} lookups this month`,
-    starHelp: "☆ opens GitHub; press Submit and within ~10 minutes it turns ★ and you get summary and 1-hour alerts. Click ★ and close the issue to remove it.",
+    starHelp: "＋Watch (flight) or ＋Watch type opens GitHub; press Submit and within ~10 minutes it becomes a Watchlist badge with summary and 1-hour alerts. Click the badge and close the issue to remove it.",
+    addLabel: { flight: "Watch", type: "Watch type", reg: "Watch aircraft" },
     starTitle: { flight: "Watch this flight", type: "Watch this aircraft type", reg: "Watch this aircraft" }, unstar: "Stop watching (close the issue on GitHub)",
     myWatch: "Watching:", issueBody: "NYC Spotter Board watchlist item. Close this issue to stop watching.",
     futureEmpty: "No rare flights expected that day. The forecast gets better as more days are logged.",
@@ -517,21 +522,31 @@ const repoPath = () => {
   const h = location.hostname;
   return h.endsWith(".github.io") ? h.split(".")[0] + "/" + (location.pathname.split("/").filter(Boolean)[0] || "") : "";
 };
-function starBtn(kind, value) {
+const normKey = (v) => String(v || "").replace(/\s+/g, "").toUpperCase();
+const watchHit = (kind, value) => value && data && (data.watch || []).find((w) => w.kind === kind && w.value === normKey(value));
+// "관심" pill: filled when watched (links to the issue to unwatch), outlined "+" when not (opens a new issue)
+function watchPill(kind, value) {
   if (!value || !data) return "";
-  const v = String(value).replace(/\s+/g, "").toUpperCase();
-  const hit = (data.watch || []).find((w) => w.kind === kind && w.value === v);
-  if (hit) return `<a class="star on" href="${esc(hit.url)}" target="_blank" rel="noopener" title="${esc(T().unstar)}" aria-label="${esc(T().unstar)}">★</a>`;
+  const hit = watchHit(kind, value);
+  if (hit) return `<a class="tag watch wpill" href="${esc(hit.url)}" target="_blank" rel="noopener" title="${esc(T().unstar)}">${T().tag.watch}</a>`;
   const repo = repoPath();
   if (!repo) return "";
-  const href = `https://github.com/${repo}/issues/new?title=${encodeURIComponent(`watch ${kind} ${v}`)}&body=${encodeURIComponent(T().issueBody)}`;
-  return `<a class="star" href="${href}" target="_blank" rel="noopener" title="${esc(T().starTitle[kind])}" aria-label="${esc(T().starTitle[kind])}">☆</a>`;
+  const href = `https://github.com/${repo}/issues/new?title=${encodeURIComponent(`watch ${kind} ${normKey(value)}`)}&body=${encodeURIComponent(T().issueBody)}`;
+  return `<a class="wadd" href="${href}" target="_blank" rel="noopener" title="${esc(T().starTitle[kind])}">＋${T().addLabel[kind]}</a>`;
+}
+// type cell for the schedule table: rarity tags, then the type's watch pill (a flight-level watch shows next to the flight)
+function typeCellWatch(s) {
+  const flightWatched = watchHit("flight", s.num) || watchHit("flight", s.cs);
+  const typeWatched = watchHit("type", s.type);
+  const otherWatch = (s.kinds || []).includes("watch") && !flightWatched && !typeWatched;   // from config or a watched reg
+  const kinds = (s.kinds || []).filter((k) => k !== "watch" || otherWatch);
+  return `<b class="mono">${esc(s.type || "—")}</b> ${tagsHtml(kinds)} ${s.type ? watchPill("type", s.type) : ""}<span class="sub">${esc(s.model || TYPE_NAME[s.type] || "")}</span>`;
 }
 function renderWatchList() {
   const w = (data && data.watch) || [];
   const el = $("watch-list");
   el.hidden = !w.length;
-  el.innerHTML = w.length ? `<span>${T().myWatch}</span>` + w.map((x) => `<a href="${esc(x.url)}" target="_blank" rel="noopener" title="${esc(T().unstar)}"><span class="star on">★</span>${esc(x.value)}</a>`).join("") : "";
+  el.innerHTML = w.length ? `<span>${T().myWatch}</span>` + w.map((x) => `<a class="tag watch wpill" href="${esc(x.url)}" target="_blank" rel="noopener" title="${esc(T().unstar)}">${esc(x.value)}</a>`).join("") : "";
 }
 
 const thead = (cols) => `<thead><tr>${cols.map((c) => `<th>${c}</th>`).join("")}</tr></thead>`;
@@ -740,9 +755,9 @@ function renderToday() {
         <td class="time c-time">${hm(s.min)}<span class="sub">${when}</span></td>
         <td class="c-ev"><span class="ev ${s.ev}">${T().ev[s.ev]}</span></td>
         <td class="mono c-ap">${esc(s.ap)}</td>
-        <td class="mono c-cs">${esc(s.cs || "—")}${starBtn("flight", s.num || s.cs)}</td>
+        <td class="mono c-cs">${esc(s.cs || "—")} ${watchPill("flight", s.num || s.cs)}</td>
         <td class="c-air">${airlineCell(s)}</td>
-        <td class="c-type">${typeCell(s)}${s.type ? starBtn("type", s.type) : ""}</td>
+        <td class="c-type">${typeCellWatch(s)}</td>
         <td class="mono c-reg">${esc(s.reg || "—")}</td>
         <td class="c-state">${stateText(s)}</td>
         <td class="c-links">${links(s)}</td>

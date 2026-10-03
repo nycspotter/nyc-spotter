@@ -18,6 +18,8 @@
     "airports": ["JFK"],
     "fetch_plan": [
       { "hour": 7,  "day_offset": 0 },
+      { "hour": 11, "day_offset": 0, "window": "pm" },
+      { "hour": 15, "day_offset": 0, "window": "pm" },
       { "hour": 20, "day_offset": 1 }
     ],
     "monthly_call_budget": 190,
@@ -144,7 +146,7 @@
     "4X-EDF": "El Al 787-9 레트로 도장 'Rehovot'"
   },
 
-  "watch_types": { "A346": "추적 중" },
+  "watch_types": {},
   "watch_registrations": {},
   "watch_flights": {}
 }
