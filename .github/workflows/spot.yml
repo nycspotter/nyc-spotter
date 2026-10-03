@@ -59,7 +59,7 @@ jobs:
       - name: Build site
         run: |
           mkdir -p _site/data
-          cp index.html _site/
+          cp index.html spots.json _site/
           cp data/*.json _site/data/
 
       - uses: actions/upload-pages-artifact@v3

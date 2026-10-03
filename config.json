@@ -13,10 +13,11 @@
   "max_alerts_per_run": 6,
   "alert_kinds": ["military", "xl", "livery", "watch"],
 
+  "magnetic_variation": -13,
   "airports": [
-    { "code": "EWR", "name": "Newark Liberty", "lat": 40.6925, "lon": -74.1687 },
-    { "code": "JFK", "name": "John F. Kennedy", "lat": 40.6413, "lon": -73.7781 },
-    { "code": "LGA", "name": "LaGuardia", "lat": 40.7769, "lon": -73.8740 }
+    { "code": "EWR", "name": "Newark Liberty", "lat": 40.6925, "lon": -74.1687, "runways": ["04", "22", "11", "29"] },
+    { "code": "JFK", "name": "John F. Kennedy", "lat": 40.6413, "lon": -73.7781, "runways": ["04", "22", "13", "31"] },
+    { "code": "LGA", "name": "LaGuardia", "lat": 40.7769, "lon": -73.8740, "runways": ["04", "22", "13", "31"] }
   ],
 
   "xl_types": {

@@ -127,8 +127,63 @@ tr.past td { opacity: .55; }
 .code { background: var(--sign); color: var(--sign-ink); font: 700 18px/1 var(--display); letter-spacing: .05em; padding: 4px 7px 3px; border-radius: 3px; }
 .card .next { font-weight: 500; }
 
+/* runways & spots */
+.rwy-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 12px; }
+.rwy { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; display: grid; gap: 10px; align-content: start; min-width: 0; }
+.rwy header { display: flex; align-items: center; gap: 10px; }
+.rwy header .name { font-weight: 700; }
+.rwy-flow { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.rwy-flow > div { border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; display: grid; gap: 2px; }
+.rwy-flow .k { font: 700 11px/1 var(--body); letter-spacing: .06em; color: var(--muted); }
+.rwy-flow b { font: 700 26px/1.1 var(--display); letter-spacing: .03em; }
+.spots { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.spots li { border-top: 1px solid var(--line); padding-top: 10px; display: grid; gap: 5px; }
+.spot-top { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+.spot-top a { color: var(--muted); font-size: 13px; text-underline-offset: 3px; white-space: nowrap; }
+.spot-tags { display: flex; flex-wrap: wrap; gap: 4px; }
+.rwy-src { margin-top: 8px; }
+
 .two { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 36px; }
 @media (max-width: 900px) { .two { grid-template-columns: minmax(0, 1fr); } }
+
+/* phones: tables become stacked rows with the same columns on every row */
+@media (max-width: 640px) {
+  body { font-size: 14px; }
+  .sign-inner { align-items: flex-start; }
+  .brand { font-size: 26px; }
+  .status { font-size: 12px; gap: 4px 10px; }
+  main { padding-top: 18px; gap: 28px; }
+  section > h2 { font-size: 20px; }
+  .filters { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; padding-bottom: 2px; }
+  .filters::-webkit-scrollbar { display: none; }
+  .filters button { flex: none; }
+  .table-wrap { overflow: visible; }
+  .table-wrap table, .table-wrap tbody, .table-wrap tr, .table-wrap td { display: block; }
+  .table-wrap thead { display: none; }
+  .table-wrap tr {
+    display: grid; grid-template-columns: 64px minmax(0, 1fr) auto; column-gap: 12px; row-gap: 4px;
+    padding: 12px 14px; border-bottom: 1px solid var(--line);
+  }
+  .table-wrap tbody tr:last-child { border-bottom: 0; }
+  .table-wrap td { padding: 0; border: 0; white-space: normal; min-width: 0; }
+  .table-wrap td:empty { display: none; }
+  td.c-time { grid-column: 1; grid-row: 1 / span 3; }
+  .t-today td.c-time { grid-row: 1 / span 6; }
+  td.c-time.mono { font-size: 13px; }
+  td.c-cs   { grid-column: 2; grid-row: 1; font-weight: 600; }
+  td.c-ev   { grid-column: 3; grid-row: 1; justify-self: end; }
+  td.c-air  { grid-column: 2; grid-row: 2; }
+  td.c-air .sub { display: inline; margin-left: 4px; }
+  td.c-ap   { grid-column: 3; grid-row: 2; justify-self: end; font-weight: 600; }
+  td.c-type { grid-column: 2 / span 2; grid-row: 3; }
+  td.c-type .sub { display: inline; margin-left: 4px; }
+  td.c-reg  { grid-column: 3; grid-row: 2; justify-self: end; }
+  .t-today td.c-reg { grid-row: 4; grid-column: 2 / span 2; justify-self: start; color: var(--muted); }
+  td.c-days { grid-column: 3; grid-row: 2; justify-self: end; text-align: right; }
+  td.c-state { grid-column: 2 / span 2; grid-row: 5; }
+  td.c-links { grid-column: 2 / span 2; grid-row: 6; }
+  .rwy-flow b { font-size: 22px; }
+}
 
 footer { padding: 24px 16px calc(env(safe-area-inset-bottom, 0px) + 32px); color: var(--muted); font-size: 13px; }
 footer p { margin: 4px 0; max-width: 75ch; }
@@ -166,6 +221,11 @@ footer p { margin: 4px 0; max-width: 75ch; }
       <button type="button" data-k="dep" aria-pressed="false" data-t="departures"></button>
     </div>
     <div id="today"></div>
+  </section>
+
+  <section aria-labelledby="h-rwy">
+    <h2 id="h-rwy"><span data-t="rwyTitle"></span> <small data-t="rwySub"></small></h2>
+    <div id="runways"></div>
   </section>
 
   <section aria-labelledby="h-ground">
@@ -217,6 +277,13 @@ const I18N = {
     thToday: ["시간", "구분", "공항", "편명", "항공사", "기종", "등록번호", "상태", ""],
     airlineFilterLabel: "항공사 (여러 개 선택 가능)", allAirlines: "전체 항공사", otherAirline: "기타·개인기",
     airportFilterLabel: "공항 (여러 개 선택 가능)", allAirports: "전체 공항",
+    rwyTitle: "활주로 & 스포팅 포인트", rwySub: "10분마다 갱신 · 지금 방향에 맞는 추천",
+    rwyArr: "착륙", rwyDep: "이륙", rwyNone: "정보 없음",
+    basisTraffic: (n) => `최근 비행기 ${n}대 기준`, basisWind: "근처 비행기가 없어 바람으로 추정", basisNone: "근처 비행기와 바람 정보가 없어요",
+    wind: (d, s, g) => d == null ? (s ? `바람 가변 ${s}kt` : "바람 정보 없음") : `바람 ${String(d).padStart(3, "0")}° ${s}kt` + (g ? ` (돌풍 ${g}kt)` : ""),
+    spotFor: (f) => (f.startsWith("arr") ? f.slice(3) + " 착륙" : f.slice(3) + " 이륙"),
+    caution: "공항·사유지", map: "지도", noSpot: "지금 활주로 방향에 맞는 공개 포인트 정보가 없어요.",
+    spotSource: "포인트 출처: spotterguide.net",
     tomorrow: "내일", eta: "도착 예정", usual: "평소 시간",
     groundEmpty: "지금 세 공항 지상에 있는 레어 기체는 없어요. 레어 기체가 내리면 여기에 뜨고, 보통 몇 시에 다시 출발하는지도 함께 보여줘요.",
     landedAt: (t) => "도착 " + t, landedUnknown: "도착 시간 모름",
@@ -255,6 +322,13 @@ const I18N = {
     thToday: ["Time", "", "Airport", "Flight", "Airline", "Type", "Reg", "Status", ""],
     airlineFilterLabel: "Airlines (pick any)", allAirlines: "All airlines", otherAirline: "Other / private",
     airportFilterLabel: "Airports (pick any)", allAirports: "All airports",
+    rwyTitle: "Runways & spotting spots", rwySub: "updated every 10 min · picks for the current flow",
+    rwyArr: "Landing", rwyDep: "Departing", rwyNone: "unknown",
+    basisTraffic: (n) => `based on ${n} recent aircraft`, basisWind: "no traffic nearby, estimated from wind", basisNone: "no traffic or wind data",
+    wind: (d, s, g) => d == null ? (s ? `Wind variable ${s}kt` : "No wind data") : `Wind ${String(d).padStart(3, "0")}° ${s}kt` + (g ? ` (gusts ${g}kt)` : ""),
+    spotFor: (f) => (f.startsWith("arr") ? "RWY " + f.slice(3) + " arrivals" : "RWY " + f.slice(3) + " departures"),
+    caution: "Airport/private property", map: "Map", noSpot: "No public spot is listed for the current runway flow.",
+    spotSource: "Spots: spotterguide.net (tips in Korean)",
     tomorrow: "tomorrow", eta: "ETA", usual: "usual time",
     groundEmpty: "No rare aircraft on the ground at EWR, JFK or LGA right now. When one lands it appears here, along with when it usually leaves.",
     landedAt: (t) => "Landed " + t, landedUnknown: "Landing time unknown",
@@ -404,21 +478,21 @@ function renderToday() {
     $("today").innerHTML = `<div class="empty">${data.today.length ? T().noMatch : T().todayEmpty}</div>`;
     return;
   }
-  $("today").innerHTML = `<div class="table-wrap"><table>
+  $("today").innerHTML = `<div class="table-wrap"><table class="t-today">
     ${thead(T().thToday)}
     <tbody>${rows.map((s) => {
       const past = (s.status === "done" || s.status === "unseen");
       const when = s.min >= 1440 ? T().tomorrow : s.status === "airborne" ? T().eta : s.status === "expected" ? T().usual : "";
       return `<tr class="${past ? "past" : ""}">
-        <td class="time">${hm(s.min)}<span class="sub">${when}</span></td>
-        <td><span class="ev ${s.ev}">${T().ev[s.ev]}</span></td>
-        <td class="mono">${esc(s.ap)}</td>
-        <td class="mono">${esc(s.cs || "—")}</td>
-        <td>${airlineCell(s)}</td>
-        <td>${typeCell(s)}</td>
-        <td class="mono">${esc(s.reg || "—")}</td>
-        <td>${stateText(s)}</td>
-        <td>${links(s)}</td>
+        <td class="time c-time">${hm(s.min)}<span class="sub">${when}</span></td>
+        <td class="c-ev"><span class="ev ${s.ev}">${T().ev[s.ev]}</span></td>
+        <td class="mono c-ap">${esc(s.ap)}</td>
+        <td class="mono c-cs">${esc(s.cs || "—")}</td>
+        <td class="c-air">${airlineCell(s)}</td>
+        <td class="c-type">${typeCell(s)}</td>
+        <td class="mono c-reg">${esc(s.reg || "—")}</td>
+        <td class="c-state">${stateText(s)}</td>
+        <td class="c-links">${links(s)}</td>
       </tr>`;
     }).join("")}</tbody></table></div>`;
 }
@@ -439,6 +513,40 @@ function renderGround() {
     </article>`).join("")}</div>`;
 }
 
+let spots = null;
+const AIRPORT_NAME = { EWR: "Newark Liberty", JFK: "John F. Kennedy", LGA: "LaGuardia" };
+function renderRunways() {
+  const rw = data.runways || {};
+  const codes = Object.keys(rw).filter((c) => apSel.size === 0 || apSel.has(c));
+  if (!codes.length) { $("runways").innerHTML = ""; return; }
+  const ends = (list) => (list && list.length ? list.map(esc).join(" · ") : T().rwyNone);
+  $("runways").innerHTML = `<div class="rwy-grid">${codes.map((code) => {
+    const r = rw[code];
+    const flows = [...(r.arr || []).map((e) => "arr" + e), ...(r.dep || []).map((e) => "dep" + e)];
+    const matches = ((spots && spots[code]) || [])
+      .map((s) => ({ s, hit: s.flows.filter((f) => flows.includes(f)) }))
+      .filter((m) => m.hit.length)
+      .sort((a, b) => a.s.caution - b.s.caution || b.hit.length - a.hit.length)
+      .slice(0, 3);
+    const basis = r.basis === "traffic" ? T().basisTraffic(r.votes) : r.basis === "wind" ? T().basisWind : T().basisNone;
+    return `<article class="rwy">
+      <header><span class="code">${code}</span><span class="name">${AIRPORT_NAME[code] || code}</span></header>
+      <div class="rwy-flow">
+        <div><span class="k">${T().rwyArr}</span><b>${ends(r.arr)}</b></div>
+        <div><span class="k">${T().rwyDep}</span><b>${ends(r.dep)}</b></div>
+      </div>
+      <div class="sub">${esc(T().wind(r.wind_dir, r.wind_spd, r.wind_gust))} · ${basis}</div>
+      ${spots == null ? "" : matches.length ? `<ul class="spots">${matches.map(({ s, hit }) => `
+        <li>
+          <div class="spot-top"><b>${esc(s.name)}</b>
+            <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(s.name + ", " + s.area)}" target="_blank" rel="noopener">${T().map}</a></div>
+          <div class="spot-tags">${hit.map((f) => `<span class="tag watch">${esc(T().spotFor(f))}</span>`).join("")}${s.caution ? `<span class="tag livery">${T().caution}</span>` : ""}</div>
+          <div class="sub">${esc(s.tip)}</div>
+        </li>`).join("")}</ul>` : `<div class="sub">${T().noSpot}</div>`}
+    </article>`;
+  }).join("")}</div><div class="sub rwy-src">${T().spotSource}</div>`;
+}
+
 function renderPatterns() {
   const p = (data.patterns || []).filter(passAir);
   if (!p.length) {
@@ -448,12 +556,12 @@ function renderPatterns() {
   $("patterns").innerHTML = `<div class="table-wrap"><table>
     ${thead(T().thPatterns)}
     <tbody>${p.map((x) => `<tr>
-      <td class="mono">${hm(x.min)}<span class="sub">${esc(x.ap)}</span></td>
-      <td><span class="ev ${x.ev}">${T().ev[x.ev]}</span></td>
-      <td class="mono">${esc(x.cs)}</td>
-      <td>${airlineCell(x)}</td>
-      <td>${typeCell(x)}</td>
-      <td>${x.daily ? T().daily : (x.dows || []).map((d) => T().dow[d]).join(T().dowJoin)}<span class="sub">${T().seenDays(x.days)}</span></td>
+      <td class="mono c-time">${hm(x.min)}<span class="sub">${esc(x.ap)}</span></td>
+      <td class="c-ev"><span class="ev ${x.ev}">${T().ev[x.ev]}</span></td>
+      <td class="mono c-cs">${esc(x.cs)}</td>
+      <td class="c-air">${airlineCell(x)}</td>
+      <td class="c-type">${typeCell(x)}</td>
+      <td class="c-days">${x.daily ? T().daily : (x.dows || []).map((d) => T().dow[d]).join(T().dowJoin)}<span class="sub">${T().seenDays(x.days)}</span></td>
     </tr>`).join("")}</tbody></table></div>`;
 }
 
@@ -466,12 +574,12 @@ function renderRecent() {
   $("recent").innerHTML = `<div class="table-wrap"><table>
     ${thead(T().thRecent)}
     <tbody>${r.map((e) => `<tr>
-      <td class="mono">${nyTime(e.ts)}<span class="sub">${esc(e.ap)}</span></td>
-      <td><span class="ev ${e.ev}">${T().ev[e.ev] || esc(e.ev)}</span></td>
-      <td class="mono">${esc(e.cs || "—")}</td>
-      <td>${airlineCell(e)}</td>
-      <td>${typeCell(e)}</td>
-      <td class="mono">${esc(e.reg || "—")}</td>
+      <td class="mono c-time">${nyTime(e.ts)}<span class="sub">${esc(e.ap)}</span></td>
+      <td class="c-ev"><span class="ev ${e.ev}">${T().ev[e.ev] || esc(e.ev)}</span></td>
+      <td class="mono c-cs">${esc(e.cs || "—")}</td>
+      <td class="c-air">${airlineCell(e)}</td>
+      <td class="c-type">${typeCell(e)}</td>
+      <td class="mono c-reg">${esc(e.reg || "—")}</td>
     </tr>`).join("")}</tbody></table></div>`;
 }
 
@@ -480,10 +588,13 @@ function renderAll() {
   renderStatus();
   renderApFilters();
   renderAirFilters();
-  if (data) { renderToday(); renderGround(); renderPatterns(); renderRecent(); }
+  if (data) { renderToday(); renderRunways(); renderGround(); renderPatterns(); renderRecent(); }
 }
 
 async function load() {
+  if (!spots) {
+    try { const s = await fetch("spots.json"); if (s.ok) spots = await s.json(); } catch (e) {}
+  }
   try {
     const r = await fetch("data/schedule.json?t=" + Date.now());
     if (!r.ok) throw new Error(r.status);

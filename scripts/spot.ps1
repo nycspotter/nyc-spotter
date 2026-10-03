@@ -256,19 +256,45 @@ function Get-Local {
   throw 'All ADS-B sources failed'
 }
 $feed = Get-Local
+
+# runway ends are magnetic designators; ADS-B tracks and METAR winds are true
+function Get-AngleDiff([double]$a, [double]$b) { [Math]::Abs((($a - $b + 540) % 360) - 180) }
+function Get-RunwayTrue($end) { ([int]$end * 10 + [double]$cfg.magnetic_variation + 360) % 360 }
+function Get-RunwayEnd($code, [double]$track) {
+  $best = $null; $bestDiff = 25
+  foreach ($end in $airports[$code].runways) {
+    $diff = Get-AngleDiff $track (Get-RunwayTrue $end)
+    if ($diff -le $bestDiff) { $best = $end; $bestDiff = $diff }
+  }
+  return $best
+}
+$rwyVotes = @{}
+foreach ($ap in $cfg.airports) { $rwyVotes[$ap.code] = @{ arr = @{}; dep = @{} } }
+
 $ground = New-Object System.Collections.ArrayList
 $landed = New-Object System.Collections.ArrayList
 
 foreach ($a in $feed.list) {
   if ($null -eq $a.lat -or $null -eq $a.lon) { continue }
   $i = Get-Info $a
-  if ($i.kinds.Count -eq 0) { continue }
 
   $near = $null; $dist = [double]::MaxValue
   foreach ($ap in $cfg.airports) {
     $d = Get-DistanceNm $a.lat $a.lon $ap.lat $ap.lon
     if ($d -lt $dist) { $dist = $d; $near = $ap.code }
   }
+
+  # every low arrival/departure near an airport votes for the runway direction in use
+  if (-not $i.gnd -and $dist -le 8 -and $null -ne $i.alt -and $i.alt -le 3000 -and $null -ne $a.track) {
+    $flow = if ($i.rate -le -300) { 'arr' } elseif ($i.rate -ge 300) { 'dep' } else { $null }
+    $end  = if ($flow) { Get-RunwayEnd $near ([double]$a.track) } else { $null }
+    if ($end) {
+      $v = $rwyVotes[$near][$flow]
+      $v[$end] = 1 + $(if ($v.ContainsKey($end)) { $v[$end] } else { 0 })
+    }
+  }
+
+  if ($i.kinds.Count -eq 0) { continue }
   $atAp = $dist -le $cfg.airport_radius_nm -and ($i.gnd -or ($null -ne $i.alt -and $i.alt -le 3000))
   $prev = $state.last[$i.hex]
   $cs   = if ($i.cs) { $i.cs } elseif ($prev) { "$($prev.cs)" } else { '' }
@@ -295,6 +321,46 @@ foreach ($a in $feed.list) {
     $state.last[$i.hex] = @{ ap = $(if ($atAp) { $near } else { $null }); gnd = $false; ts = $now; cs = $i.cs }
   } else {
     $state.last[$i.hex] = @{ ap = $null; gnd = $true; ts = $now; cs = $cs }
+  }
+}
+
+# ---------- runways in use: traffic first, wind as fallback ----------
+$metar = @{}
+try {
+  $ids = (@($cfg.airports | ForEach-Object { 'K' + $_.code }) -join ',')
+  $list = Get-Json "https://aviationweather.gov/api/data/metar?ids=$ids&format=json"   # assign first so the array enumerates on PS 5.1
+  foreach ($m in $list) {
+    if ($m.icaoId) { $metar["$($m.icaoId)".Substring(1)] = $m }
+  }
+} catch { Write-Warning "METAR failed: $($_.Exception.Message)" }
+
+$runways = [ordered]@{}
+foreach ($ap in $cfg.airports) {
+  $code  = $ap.code
+  $votes = $rwyVotes[$code]
+  $arr = @($votes.arr.GetEnumerator() | Sort-Object Value -Descending | ForEach-Object { $_.Key })
+  $dep = @($votes.dep.GetEnumerator() | Sort-Object Value -Descending | ForEach-Object { $_.Key })
+  $m = $metar[$code]
+  $wdir = if ($m -and "$($m.wdir)" -match '^\d+$') { [int]$m.wdir } else { $null }   # 'VRB' -> null
+  $wspd = if ($m -and $null -ne $m.wspd) { [int]$m.wspd } else { $null }
+  $basis = 'traffic'
+  if ($arr.Count -eq 0 -and $dep.Count -eq 0) {
+    $basis = 'none'
+    if ($null -ne $wdir -and $wspd -ge 5) {
+      # land and take off into the wind
+      $best = $null; $bestDiff = 360
+      foreach ($end in $ap.runways) {
+        $diff = Get-AngleDiff $wdir (Get-RunwayTrue $end)
+        if ($diff -lt $bestDiff) { $best = $end; $bestDiff = $diff }
+      }
+      $arr = @($best); $dep = @($best); $basis = 'wind'
+    }
+  }
+  $runways[$code] = [ordered]@{
+    arr = $arr; dep = $dep; basis = $basis
+    votes = [int](@(@($votes.arr.Values) + @($votes.dep.Values)) | Measure-Object -Sum).Sum
+    wind_dir = $wdir; wind_spd = $wspd; wind_gust = $(if ($m) { $m.wgst } else { $null })
+    metar = $(if ($m) { "$($m.rawOb)" } else { $null })
   }
 }
 
@@ -451,6 +517,7 @@ Write-Data 'schedule.json' ([ordered]@{
   source   = $feed.source
   today    = $schedSorted
   ground   = @($ground)
+  runways  = $runways
   patterns = @($patterns | Sort-Object { [int]$_.min })
   recent   = @($events | Sort-Object { [long]$_.ts } -Descending | Select-Object -First 40)
 })

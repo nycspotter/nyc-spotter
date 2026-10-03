@@ -1,0 +1,47 @@
+{
+  "_note": "Spotting locations by runway flow. flows: arrNN = landing on runway NN, depNN = taking off from runway NN. caution = airport or private property. Source: spotterguide.net (checked 2026-10). Coordinates are approximate, so map links search by name.",
+  "JFK": [
+    { "name": "Bayswater Point State Park", "area": "Far Rockaway, NY", "flows": ["arr04", "arr31", "dep13"], "caution": false,
+      "tip": "자메이카만 건너 04R·31L 착륙기를 보는 곳. 오전 8시 개장 후부터 좋고, 지하철 A선 Far Rockaway–Mott Av역에서 갈 수 있어요. 아지랑이와 벌레가 심하니 신분증과 벌레 퇴치제를 챙기세요." },
+    { "name": "Brookville Park", "area": "Rosedale, Queens, NY", "flows": ["arr22"], "caution": false,
+      "tip": "22L 착륙 접근 경로 아래 공원. 여름엔 이른 오후부터 해질녘까지 빛이 좋고, 벤치와 Q111 버스가 있어요." },
+    { "name": "230th Pl & 149th Ave", "area": "Rosedale, Queens, NY", "flows": ["arr22", "dep04"], "caution": false,
+      "tip": "축구장 옆 작은 둔덕에서 22L/22R 착륙기를 봐요(22L은 오후, 22R은 오전). 학교 경비원이 말을 걸 수 있고 벌레가 많아요." },
+    { "name": "North Woodmere Park", "area": "North Woodmere, NY", "flows": ["arr22", "arr31"], "caution": false,
+      "tip": "22L 착륙은 일출부터 오후 1시 반쯤까지, 31R 착륙은 여름 오전 10시경이 좋아요. 5~9월엔 나소 카운티 비거주자 입장료가 있어요." },
+    { "name": "Costco, Rockaway Turnpike", "area": "Lawrence, NY", "flows": ["arr31"], "caution": true,
+      "tip": "31R 착륙 전용, 정오부터 해질녘까지 좋아요. 사유지 주차장이라 차 안에 머물며 눈에 띄지 않게 하세요." },
+    { "name": "Frank M. Charles Memorial Park", "area": "Howard Beach, Queens, NY", "flows": ["dep31", "arr13"], "caution": false,
+      "tip": "31L 이륙기가 선회하며 올라가는 모습을 오전 중반 이후 보기 좋아요. 가족 이용객이 많고, 해변 너머 사유지엔 들어가지 마세요." },
+    { "name": "TWA Hotel rooftop", "area": "JFK Airport, NY", "flows": ["dep22", "arr22", "dep04", "arr04"], "caution": true,
+      "tip": "공항 안 호텔 옥상 데크에서 22R/04L과 지상 이동을 봐요. 오후·저녁이 아지랑이가 덜하고, 사전 예약과 유료 입장이 필요해요." },
+    { "name": "Rockaway Beach, Almeda Ave", "area": "Arverne, Queens, NY", "flows": ["arr04"], "caution": false,
+      "tip": "04R 착륙기를 오후 중반부터 해질녘까지 봐요. A선 Beach 67 St역에서 걸어가고, 주변에 편의시설이 없어요." }
+  ],
+  "EWR": [
+    { "name": "Elizabeth Center (IKEA)", "area": "Elizabeth, NJ", "flows": ["arr04", "dep22"], "caution": true,
+      "tip": "04R 착륙의 대표 명소. 일출부터 이른 오후까지 순광이고 Floor & Decor 쪽 무료 주차를 권해요. 경찰 점검이 잦지만 차 안에서 찍으면 대체로 괜찮아요." },
+    { "name": "Newark Airport Economy Parking P6", "area": "Newark, NJ", "flows": ["arr22"], "caution": true,
+      "tip": "공항 유료 장기주차장에서 22L/22R 착륙을 하루 종일 봐요. 보안요원이 나가라고 하면 바로 옮기세요." },
+    { "name": "Newark Airport Rideshare Hold Lot, Earhart Dr", "area": "Newark, NJ", "flows": ["arr04"], "caution": true,
+      "tip": "04R 착륙을 오후 3시경부터 해질녘까지 봐요. 4시간 무료 주차지만 공항 부지이고 오후엔 만차일 수 있어요." },
+    { "name": "Corbin St, Port Newark", "area": "Newark, NJ", "flows": ["arr29"], "caution": true,
+      "tip": "강풍 때만 쓰는 29번 착륙을 늦은 오전부터 늦은 오후까지 봐요. 항만 부지일 수 있으니 차 안에 머무세요." },
+    { "name": "Delancy St truck lot", "area": "Newark, NJ", "flows": ["arr22"], "caution": true,
+      "tip": "22L 착륙을 아침에 찍기 좋아요. 사유지 트럭 주차장이라 평일은 피하고 차 안에 머무세요." }
+  ],
+  "LGA": [
+    { "name": "Planeview Park", "area": "East Elmhurst, Queens, NY", "flows": ["arr04", "arr22", "dep22"], "caution": false,
+      "tip": "04번 활주로 끝 바로 옆. 04 착륙은 일출~정오, 22 착륙은 늦은 오후가 좋아요. 길가 무료 주차 가능." },
+    { "name": "Ditmars Blvd & 90th St", "area": "East Elmhurst, Queens, NY", "flows": ["arr04"], "caution": false,
+      "tip": "04 착륙 전용, 일출부터 정오까지 좋아요. 입구에 무료 주차가 있어요." },
+    { "name": "Grand Central Pkwy pedestrian overpass, Ditmars Blvd", "area": "East Elmhurst, Queens, NY", "flows": ["arr31", "dep13"], "caution": false,
+      "tip": "31 착륙(늦은 오전~해질녘)과 13 이륙 선회(오후~해질녘)를 보는 육교. 400~500mm 망원이 필요해요." },
+    { "name": "Flushing Bay Promenade", "area": "Flushing, Queens, NY", "flows": ["arr31"], "caution": false,
+      "tip": "고속도로 위로 선회하며 내려오는 31 착륙기를 정오부터 해질녘까지 봐요. 주말엔 마리나 주차장이 붐벼요." },
+    { "name": "MacNeil Park", "area": "College Point, Queens, NY", "flows": ["arr22"], "caution": false,
+      "tip": "22 착륙 전용, 일출부터 정오까지 순광. Poppenhusen Ave 무료 주차, 벤치와 그늘이 있어요." },
+    { "name": "LaGuardia Terminal B parking garage", "area": "Queens, NY", "flows": ["arr04", "dep04"], "caution": true,
+      "tip": "7층 부근에서 주기장, 04 착륙과 이륙 대기 줄을 오전에 봐요. 공항 부지라 보안요원이 순찰해요." }
+  ]
+}
