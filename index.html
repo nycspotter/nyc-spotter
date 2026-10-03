@@ -127,6 +127,18 @@ tr.past td { opacity: .55; }
 .code { background: var(--sign); color: var(--sign-ink); font: 700 18px/1 var(--display); letter-spacing: .05em; padding: 4px 7px 3px; border-radius: 3px; }
 .card .next { font-weight: 500; }
 
+/* date picker */
+.date-bar { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+.date-bar button, .date-bar input {
+  font: 500 14px/1 var(--body); height: 36px; border-radius: 8px; cursor: pointer;
+  border: 1px solid var(--line); background: var(--panel); color: var(--ink);
+}
+.date-bar button { min-width: 36px; padding: 0 12px; }
+.date-bar #d-prev, .date-bar #d-next { font-size: 20px; padding: 0; }
+.date-bar button:disabled { opacity: .4; cursor: default; }
+.date-bar input { padding: 0 10px; font-family: var(--mono); }
+.mode-note { font-size: 13px; color: var(--live); background: var(--live-bg); border-radius: 6px; padding: 8px 12px; margin-bottom: 10px; }
+
 /* runways & spots */
 .rwy-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 12px; }
 .rwy { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; display: grid; gap: 10px; align-content: start; min-width: 0; }
@@ -215,6 +227,12 @@ footer p { margin: 4px 0; max-width: 75ch; }
 
   <section aria-labelledby="h-today">
     <h2 id="h-today"><span data-t="todayTitle"></span> <small id="today-sub"></small></h2>
+    <div class="date-bar">
+      <button type="button" id="d-prev" data-t-aria="prevDay">‹</button>
+      <input type="date" id="d-input">
+      <button type="button" id="d-next" data-t-aria="nextDay">›</button>
+      <button type="button" id="d-today" data-t="todayBtn" hidden></button>
+    </div>
     <div class="filters" id="filters" role="group">
       <button type="button" data-k="all" aria-pressed="true" data-t="all"></button>
       <button type="button" data-k="arr" aria-pressed="false" data-t="arrivals"></button>
@@ -254,7 +272,10 @@ footer p { margin: 4px 0; max-width: 75ch; }
 const I18N = {
   ko: {
     loading: "불러오는 중…",
-    todayTitle: "오늘의 레어 스케줄", nyTime: "뉴욕 시간",
+    todayTitle: "레어 스케줄", nyTime: "뉴욕 시간",
+    todayBtn: "오늘로", prevDay: "이전 날", nextDay: "다음 날",
+    futureNote: "학습된 정기편을 바탕으로 한 예상이에요(지금 시점 기록 기준). 실제 운항, 기종 변경, 지연은 반영되지 않아요.",
+    futureEmpty: "이 날 예상되는 레어편이 없어요. 학습된 정기편이 적으면 비어 있을 수 있고, 기록이 쌓일수록 정확해져요.",
     all: "전체", arrivals: "도착", departures: "출발", filterLabel: "도착 출발 필터",
     groundTitle: "지금 공항에 있는 레어", groundSub: "출발 사진 찍을 기회",
     patternsTitle: "자주 오는 레어편", patternsSub: "최근 3주 관측으로 학습",
@@ -299,7 +320,10 @@ const I18N = {
   },
   en: {
     loading: "Loading…",
-    todayTitle: "Today's rare movements", nyTime: "New York time",
+    todayTitle: "Rare movements", nyTime: "New York time",
+    todayBtn: "Today", prevDay: "Previous day", nextDay: "Next day",
+    futureNote: "A forecast from learned regular flights, as of now. Real operations, equipment swaps and delays aren't reflected.",
+    futureEmpty: "No rare flights expected that day. The forecast gets better as more days are logged.",
     all: "All", arrivals: "Arrivals", departures: "Departures", filterLabel: "Arrivals and departures filter",
     groundTitle: "On the ground now", groundSub: "your chance to catch the departure",
     patternsTitle: "Regular rare flights", patternsSub: "learned from the last 3 weeks",
@@ -453,7 +477,8 @@ function renderStatic() {
   document.querySelectorAll("[data-t]").forEach((el) => { el.textContent = T()[el.dataset.t]; });
   $("filters").setAttribute("aria-label", T().filterLabel);
   document.querySelectorAll(".lang button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.lang === lang)));
-  $("today-sub").textContent = data ? `${data.date} · ${T().nyTime}` : T().nyTime;
+  document.querySelectorAll("[data-t-aria]").forEach((el) => el.setAttribute("aria-label", T()[el.dataset.tAria]));
+  if (!data) $("today-sub").textContent = T().nyTime;
 }
 
 function renderStatus() {
@@ -471,14 +496,55 @@ function renderStatus() {
   if (stale) $("notice").textContent = T().stale(ago(data.updated));
 }
 
+// ---- date picker: today = live schedule, later days = learned regulars for that weekday ----
+const MAX_DAYS_AHEAD = 14;
+let viewDate = null;           // "YYYY-MM-DD" in New York time; null means today
+const addDays = (d, n) => { const t = new Date(d + "T12:00:00Z"); t.setUTCDate(t.getUTCDate() + n); return t.toISOString().slice(0, 10); };
+const dowOf = (d) => new Date(d + "T12:00:00Z").getUTCDay();
+const curDate = () => viewDate || data.date;
+
+function rowsForDate() {
+  const d = curDate();
+  if (d === data.date) return { mode: "today", rows: data.today };
+  const dow = dowOf(d);
+  return { mode: "future", rows: (data.patterns || [])
+    .filter((p) => p.daily || (p.dows || []).includes(dow))
+    .map((p) => ({ ...p, hex: null, status: "expected", source: "pattern" }))
+    .sort((a, b) => a.min - b.min) };
+}
+
+function renderDateBar() {
+  if (!data) return;
+  const d = curDate();
+  const inp = $("d-input");
+  inp.min = data.date; inp.max = addDays(data.date, MAX_DAYS_AHEAD); inp.value = d;
+  $("d-prev").disabled = d <= inp.min;
+  $("d-next").disabled = d >= inp.max;
+  $("d-today").hidden = d === data.date;
+  $("today-sub").textContent = `${d} (${T().dow[dowOf(d)]}) · ${T().nyTime}`;
+}
+
+function setViewDate(d) {
+  if (!data || !d) return;
+  const min = data.date, max = addDays(data.date, MAX_DAYS_AHEAD);
+  d = d < min ? min : d > max ? max : d;
+  viewDate = d === data.date ? null : d;
+  renderDateBar();
+  renderToday();
+}
+
 function renderToday() {
   document.querySelectorAll("#filters button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.k === filter)));
-  const rows = data.today.filter((s) => (filter === "all" || s.ev === filter) && passAir(s));
+  renderDateBar();
+  const { mode, rows: all } = rowsForDate();
+  const note = mode === "future" ? `<div class="mode-note">${T().futureNote}</div>` : "";
+  const rows = all.filter((s) => (filter === "all" || s.ev === filter) && passAir(s));
   if (!rows.length) {
-    $("today").innerHTML = `<div class="empty">${data.today.length ? T().noMatch : T().todayEmpty}</div>`;
+    const empty = all.length ? T().noMatch : mode === "future" ? T().futureEmpty : T().todayEmpty;
+    $("today").innerHTML = note + `<div class="empty">${empty}</div>`;
     return;
   }
-  $("today").innerHTML = `<div class="table-wrap"><table class="t-today">
+  $("today").innerHTML = note + `<div class="table-wrap"><table class="t-today">
     ${thead(T().thToday)}
     <tbody>${rows.map((s) => {
       const past = (s.status === "done" || s.status === "unseen");
@@ -635,6 +701,11 @@ $("air-filters").addEventListener("click", (e) => {
   try { localStorage.setItem("spot-airlines", JSON.stringify([...airSel])); } catch (err) {}
   renderAll();
 });
+
+$("d-prev").addEventListener("click", () => data && setViewDate(addDays(curDate(), -1)));
+$("d-next").addEventListener("click", () => data && setViewDate(addDays(curDate(), 1)));
+$("d-today").addEventListener("click", () => setViewDate(data && data.date));
+$("d-input").addEventListener("change", (e) => setViewDate(e.target.value));
 
 document.querySelector(".lang").addEventListener("click", (e) => {
   const b = e.target.closest("button");
