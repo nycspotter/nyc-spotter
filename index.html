@@ -94,6 +94,10 @@ section > h2 small { font: 400 13px/1.3 var(--body); letter-spacing: 0; text-tra
   border: 1px solid var(--line); background: var(--panel); color: var(--ink);
 }
 .filters button[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.filters button .n { font-family: var(--mono); font-size: 11px; opacity: .65; margin-left: 4px; }
+.air-bar { display: grid; gap: 8px; }
+.air-bar .label { font: 700 11px/1 var(--body); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.air-bar .filters { margin-bottom: 0; }
 
 /* departure-board table */
 .table-wrap { overflow-x: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; }
@@ -146,6 +150,13 @@ footer p { margin: 4px 0; max-width: 75ch; }
 
 <main>
   <div class="notice" id="notice" hidden></div>
+
+  <div class="air-bar">
+    <span class="label" data-t="airportFilterLabel"></span>
+    <div class="filters" id="ap-filters" role="group"></div>
+    <span class="label" data-t="airlineFilterLabel"></span>
+    <div class="filters" id="air-filters" role="group"></div>
+  </div>
 
   <section aria-labelledby="h-today">
     <h2 id="h-today"><span data-t="todayTitle"></span> <small id="today-sub"></small></h2>
@@ -203,16 +214,18 @@ const I18N = {
     stale: (ago) => `마지막 갱신이 ${ago}이에요. GitHub 저장소의 Actions 탭에서 자동 실행이 멈췄는지 확인해 주세요.`,
     noMatch: "이 조건의 편이 없어요.",
     todayEmpty: "오늘 확인된 레어편이 아직 없어요. A380·747 같은 기체가 NYC로 출발하면 바로 여기에 도착 예정 시간이 뜨고, 며칠 기록이 쌓이면 매일 오는 편도 미리 표시돼요.",
-    thToday: ["시간", "구분", "공항", "편명", "기종", "등록번호", "상태", ""],
+    thToday: ["시간", "구분", "공항", "편명", "항공사", "기종", "등록번호", "상태", ""],
+    airlineFilterLabel: "항공사 (여러 개 선택 가능)", allAirlines: "전체 항공사", otherAirline: "기타·개인기",
+    airportFilterLabel: "공항 (여러 개 선택 가능)", allAirports: "전체 공항",
     tomorrow: "내일", eta: "도착 예정", usual: "평소 시간",
     groundEmpty: "지금 세 공항 지상에 있는 레어 기체는 없어요. 레어 기체가 내리면 여기에 뜨고, 보통 몇 시에 다시 출발하는지도 함께 보여줘요.",
     landedAt: (t) => "도착 " + t, landedUnknown: "도착 시간 모름",
     nextDep: (t, cs) => `출발 예상 ${t} · ${cs}`, nextDepUnknown: "출발 시간은 아직 학습 전",
     patternsEmpty: "아직 학습된 편이 없어요. 같은 레어편이 이틀 이상 관측되면 여기에 쌓여요.",
-    thPatterns: ["보통 시간", "구분", "편명", "기종", "요일"],
+    thPatterns: ["보통 시간", "구분", "편명", "항공사", "기종", "요일"],
     daily: "거의 매일", seenDays: (n) => `${n}일 관측`,
     recentEmpty: "아직 기록이 없어요. 레어 기체가 세 공항에 내리거나 뜨면 여기에 남아요.",
-    thRecent: ["시각", "구분", "편명", "기종", "등록번호"],
+    thRecent: ["시각", "구분", "편명", "항공사", "기종", "등록번호"],
     noData: "데이터를 아직 못 불러왔어요",
     noDataNotice: "data/schedule.json을 찾지 못했어요. GitHub Actions에서 spot 워크플로를 한 번 실행하면 데이터가 생깁니다.",
     locale: "ko-KR", dateMonth: "numeric"
@@ -239,21 +252,53 @@ const I18N = {
     stale: (ago) => `Last update was ${ago}. Check the Actions tab in the GitHub repository to see if the scheduled run stopped.`,
     noMatch: "Nothing matches this filter.",
     todayEmpty: "No rare movements found yet today. When an A380, 747 or special livery takes off for New York, its ETA shows up here. After a few days of logging, regular flights are listed ahead of time too.",
-    thToday: ["Time", "", "Airport", "Flight", "Type", "Reg", "Status", ""],
+    thToday: ["Time", "", "Airport", "Flight", "Airline", "Type", "Reg", "Status", ""],
+    airlineFilterLabel: "Airlines (pick any)", allAirlines: "All airlines", otherAirline: "Other / private",
+    airportFilterLabel: "Airports (pick any)", allAirports: "All airports",
     tomorrow: "tomorrow", eta: "ETA", usual: "usual time",
     groundEmpty: "No rare aircraft on the ground at EWR, JFK or LGA right now. When one lands it appears here, along with when it usually leaves.",
     landedAt: (t) => "Landed " + t, landedUnknown: "Landing time unknown",
     nextDep: (t, cs) => `Likely departs ${t} · ${cs}`, nextDepUnknown: "Departure time not learned yet",
     patternsEmpty: "No regular flights learned yet. A rare flight appears here once it has been seen on two or more days.",
-    thPatterns: ["Usual time", "", "Flight", "Type", "Days"],
+    thPatterns: ["Usual time", "", "Flight", "Airline", "Type", "Days"],
     daily: "Almost daily", seenDays: (n) => `seen on ${n} days`,
     recentEmpty: "Nothing logged yet. Rare landings and takeoffs at the three airports are recorded here.",
-    thRecent: ["When", "", "Flight", "Type", "Reg"],
+    thRecent: ["When", "", "Flight", "Airline", "Type", "Reg"],
     noData: "No data yet",
     noDataNotice: "Couldn't find data/schedule.json. Run the spot workflow once from the Actions tab on GitHub to create it.",
     locale: "en-US", dateMonth: "short"
   }
 };
+// ICAO airline code (first 3 letters of the callsign) -> name
+const AIRLINES = {
+  AAL: "American", DAL: "Delta", UAL: "United", JBU: "JetBlue", ASA: "Alaska", SWA: "Southwest", NKS: "Spirit",
+  FFT: "Frontier", AAY: "Allegiant", SCX: "Sun Country", HAL: "Hawaiian", RPA: "Republic", EDV: "Endeavor",
+  SKW: "SkyWest", ENY: "Envoy", JIA: "PSA", GJS: "GoJet", ASH: "Mesa", PDT: "Piedmont", BRE: "Breeze",
+  ACA: "Air Canada", JZA: "Air Canada Jazz", ROU: "Air Canada Rouge", WJA: "WestJet", PTR: "Porter",
+  BAW: "British Airways", VIR: "Virgin Atlantic", DLH: "Lufthansa", AFR: "Air France", KLM: "KLM", IBE: "Iberia",
+  AEA: "Air Europa", TAP: "TAP Air Portugal", SWR: "Swiss", AUA: "Austrian", SAS: "SAS", FIN: "Finnair",
+  ICE: "Icelandair", EIN: "Aer Lingus", ITY: "ITA Airways", LOT: "LOT Polish", BEL: "Brussels", EWG: "Eurowings",
+  CFG: "Condor", NOZ: "Norse", NSZ: "Norse", PLY: "Play", EDW: "Edelweiss", VLG: "Vueling", LZB: "Bulgaria Air",
+  THY: "Turkish", UAE: "Emirates", QTR: "Qatar", ETD: "Etihad", SVA: "Saudia", ELY: "El Al", RJA: "Royal Jordanian",
+  MSR: "EgyptAir", ETH: "Ethiopian", RAM: "Royal Air Maroc", KQA: "Kenya Airways", RWD: "RwandAir", SAA: "South African",
+  KAL: "Korean Air", AAR: "Asiana", JAL: "Japan Airlines", ANA: "ANA", CPA: "Cathay Pacific", EVA: "EVA Air",
+  CAL: "China Airlines", CCA: "Air China", CES: "China Eastern", CSN: "China Southern", CXA: "Xiamen Air",
+  CHH: "Hainan", SIA: "Singapore", QFA: "Qantas", ANZ: "Air New Zealand", AIC: "Air India", PAL: "Philippine",
+  PIA: "PIA", UZB: "Uzbekistan", AMX: "Aeromexico", VOI: "Volaris", VIV: "Viva", AVA: "Avianca", CMP: "Copa",
+  LAN: "LATAM", TAM: "LATAM Brasil", LPE: "LATAM Peru", ARG: "Aerolineas Argentinas", GLO: "Gol", AZU: "Azul",
+  BWA: "Caribbean", CAY: "Cayman", BHS: "Bahamasair", JBA: "JetBlue", DWI: "Arajet", SKU: "Sky Airline",
+  FDX: "FedEx", UPS: "UPS", GTI: "Atlas Air", CLX: "Cargolux", CKS: "Kalitta", NCA: "Nippon Cargo",
+  GEC: "Lufthansa Cargo", MPH: "Martinair", ABX: "ABX Air", ATN: "ATI", PAC: "Polar", WGN: "Western Global",
+  CAO: "Air China Cargo", CKK: "China Cargo", ABW: "AirBridgeCargo", QAF: "Qatar Cargo", BCS: "DHL (EAT)",
+  DHK: "DHL Air", BOX: "AeroLogic", ICL: "CAL Cargo", TAY: "ASL Belgium",
+  RCH: "US Air Force (Reach)", SAM: "US Air Force (SAM)", PAT: "US Army", CNV: "US Navy", CFC: "RCAF", RRR: "Royal Air Force",
+  EJA: "NetJets", LXJ: "Flexjet", XOJ: "XOJET", JTL: "Jet Linx", VJT: "VistaJet", GAJ: "Gama"
+};
+const airlineCode = (cs) => (/^[A-Z]{3}[0-9A-Z]/.test(cs || "") ? cs.slice(0, 3) : "");
+const airlineName = (code) => code ? (AIRLINES[code] || code) : T().otherAirline;
+const airlineCell = (x) => { const c = airlineCode(x.cs); return c ? `${esc(airlineName(c))}<span class="sub">${c}</span>` : `<span class="sub">${T().otherAirline}</span>`; };
+const airKey = (x) => airlineCode(x.cs) || "OTHER";
+
 const TYPE_NAME = {
   A388: "Airbus A380", B748: "Boeing 747-8", B744: "Boeing 747-400", B742: "Boeing 747-200", B74S: "Boeing 747SP",
   BLCF: "747 Dreamlifter", A346: "Airbus A340-600", A345: "Airbus A340-500", A343: "Airbus A340-300",
@@ -292,6 +337,36 @@ let loadFailed = false;
 let filter = "all";
 try { filter = localStorage.getItem("spot-ev") || "all"; } catch (e) {}
 
+// airline filter: empty set = show every airline
+let airSel = new Set();
+try { airSel = new Set(JSON.parse(localStorage.getItem("spot-airlines") || "[]")); } catch (e) {}
+const AIRPORTS = ["EWR", "JFK", "LGA"];
+let apSel = new Set();
+try { apSel = new Set(JSON.parse(localStorage.getItem("spot-airports") || "[]")); } catch (e) {}
+// airline and airport filters combine: a row must match both
+const passAir = (x) => (airSel.size === 0 || airSel.has(airKey(x))) && (apSel.size === 0 || apSel.has(x.ap));
+
+function renderApFilters() {
+  const counts = new Map(AIRPORTS.map((a) => [a, 0]));
+  if (data) for (const s of data.today) if (counts.has(s.ap)) counts.set(s.ap, counts.get(s.ap) + 1);
+  $("ap-filters").innerHTML =
+    `<button type="button" data-ap="" aria-pressed="${apSel.size === 0}">${T().allAirports}</button>` +
+    AIRPORTS.map((a) => `<button type="button" data-ap="${a}" aria-pressed="${apSel.has(a)}">${a}<span class="n">${counts.get(a)}</span></button>`).join("");
+}
+
+function renderAirFilters() {
+  if (!data) { $("air-filters").innerHTML = ""; return; }
+  const counts = new Map();
+  for (const s of data.today) counts.set(airKey(s), (counts.get(airKey(s)) || 0) + 1);
+  for (const x of [...(data.ground || []), ...(data.patterns || []), ...(data.recent || [])]) if (!counts.has(airKey(x))) counts.set(airKey(x), 0);
+  for (const k of airSel) if (!counts.has(k)) counts.set(k, 0);
+  const label = (k) => k === "OTHER" ? T().otherAirline : airlineName(k);
+  const keys = [...counts.keys()].sort((a, b) => (a === "OTHER") - (b === "OTHER") || label(a).localeCompare(label(b)));
+  $("air-filters").innerHTML =
+    `<button type="button" data-air="" aria-pressed="${airSel.size === 0}">${T().allAirlines}</button>` +
+    keys.map((k) => `<button type="button" data-air="${esc(k)}" aria-pressed="${airSel.has(k)}">${esc(label(k))}<span class="n">${counts.get(k)}</span></button>`).join("");
+}
+
 function stateText(s) {
   if (s.status === "airborne") return `<span class="state airborne">${esc(T().airborne(s.origin))}</span>`;
   if (s.status === "done") return `<span class="state done">${s.ev === "arr" ? T().landed : T().departed}${s.dest ? esc(T().forDest(s.dest)) : ""}</span>`;
@@ -324,7 +399,7 @@ function renderStatus() {
 
 function renderToday() {
   document.querySelectorAll("#filters button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.k === filter)));
-  const rows = data.today.filter((s) => filter === "all" || s.ev === filter);
+  const rows = data.today.filter((s) => (filter === "all" || s.ev === filter) && passAir(s));
   if (!rows.length) {
     $("today").innerHTML = `<div class="empty">${data.today.length ? T().noMatch : T().todayEmpty}</div>`;
     return;
@@ -339,6 +414,7 @@ function renderToday() {
         <td><span class="ev ${s.ev}">${T().ev[s.ev]}</span></td>
         <td class="mono">${esc(s.ap)}</td>
         <td class="mono">${esc(s.cs || "—")}</td>
+        <td>${airlineCell(s)}</td>
         <td>${typeCell(s)}</td>
         <td class="mono">${esc(s.reg || "—")}</td>
         <td>${stateText(s)}</td>
@@ -348,7 +424,7 @@ function renderToday() {
 }
 
 function renderGround() {
-  const g = data.ground || [];
+  const g = (data.ground || []).filter(passAir);
   if (!g.length) {
     $("ground").innerHTML = `<div class="empty">${T().groundEmpty}</div>`;
     return;
@@ -356,7 +432,7 @@ function renderGround() {
   $("ground").innerHTML = `<div class="cards">${g.map((x) => `
     <article class="card">
       <div class="top"><span class="type">${esc(x.type)}</span><span class="code">${esc(x.ap)}</span></div>
-      <div>${tagsHtml(x.kinds)} <span class="mono">${esc(x.reg || "")}</span></div>
+      <div>${tagsHtml(x.kinds)} <span class="mono">${esc(x.reg || "")}</span> ${airlineCode(x.cs) ? esc(airlineName(airlineCode(x.cs))) : ""}</div>
       <div class="sub">${x.since ? T().landedAt(nyTime(x.since)) : T().landedUnknown}${x.cs ? " · " + esc(x.cs) : ""}</div>
       <div class="next">${x.next_dep ? esc(T().nextDep(hm(x.next_dep.min), x.next_dep.cs)) : T().nextDepUnknown}</div>
       ${links(x)}
@@ -364,7 +440,7 @@ function renderGround() {
 }
 
 function renderPatterns() {
-  const p = data.patterns || [];
+  const p = (data.patterns || []).filter(passAir);
   if (!p.length) {
     $("patterns").innerHTML = `<div class="empty">${T().patternsEmpty}</div>`;
     return;
@@ -375,13 +451,14 @@ function renderPatterns() {
       <td class="mono">${hm(x.min)}<span class="sub">${esc(x.ap)}</span></td>
       <td><span class="ev ${x.ev}">${T().ev[x.ev]}</span></td>
       <td class="mono">${esc(x.cs)}</td>
+      <td>${airlineCell(x)}</td>
       <td>${typeCell(x)}</td>
       <td>${x.daily ? T().daily : (x.dows || []).map((d) => T().dow[d]).join(T().dowJoin)}<span class="sub">${T().seenDays(x.days)}</span></td>
     </tr>`).join("")}</tbody></table></div>`;
 }
 
 function renderRecent() {
-  const r = data.recent || [];
+  const r = (data.recent || []).filter(passAir);
   if (!r.length) {
     $("recent").innerHTML = `<div class="empty">${T().recentEmpty}</div>`;
     return;
@@ -392,6 +469,7 @@ function renderRecent() {
       <td class="mono">${nyTime(e.ts)}<span class="sub">${esc(e.ap)}</span></td>
       <td><span class="ev ${e.ev}">${T().ev[e.ev] || esc(e.ev)}</span></td>
       <td class="mono">${esc(e.cs || "—")}</td>
+      <td>${airlineCell(e)}</td>
       <td>${typeCell(e)}</td>
       <td class="mono">${esc(e.reg || "—")}</td>
     </tr>`).join("")}</tbody></table></div>`;
@@ -400,6 +478,8 @@ function renderRecent() {
 function renderAll() {
   renderStatic();
   renderStatus();
+  renderApFilters();
+  renderAirFilters();
   if (data) { renderToday(); renderGround(); renderPatterns(); renderRecent(); }
 }
 
@@ -421,6 +501,28 @@ $("filters").addEventListener("click", (e) => {
   filter = b.dataset.k;
   try { localStorage.setItem("spot-ev", filter); } catch (err) {}
   renderToday();
+});
+
+$("ap-filters").addEventListener("click", (e) => {
+  const b = e.target.closest("button");
+  if (!b) return;
+  const k = b.dataset.ap;
+  if (!k) apSel.clear();
+  else if (apSel.has(k)) apSel.delete(k);
+  else apSel.add(k);
+  try { localStorage.setItem("spot-airports", JSON.stringify([...apSel])); } catch (err) {}
+  renderAll();
+});
+
+$("air-filters").addEventListener("click", (e) => {
+  const b = e.target.closest("button");
+  if (!b || !data) return;
+  const k = b.dataset.air;
+  if (!k) airSel.clear();
+  else if (airSel.has(k)) airSel.delete(k);
+  else airSel.add(k);
+  try { localStorage.setItem("spot-airlines", JSON.stringify([...airSel])); } catch (err) {}
+  renderAll();
 });
 
 document.querySelector(".lang").addEventListener("click", (e) => {
