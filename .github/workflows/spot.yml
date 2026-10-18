@@ -13,17 +13,16 @@ permissions:
   issues: read      # watchlist comes from issues titled "watch ..."
   id-token: write
 
-concurrency:
-  group: spot
-  cancel-in-progress: false
-
+# Data collection and site deploy are separate jobs with separate queues.
+# The deploy waits on the github-pages environment, which once got stuck in "waiting" for days and,
+# sharing one queue, blocked every later run. Now a newer deploy cancels a stuck one, and collection never waits on it.
 jobs:
-  spot:
+  collect:
     runs-on: ubuntu-latest
     timeout-minutes: 8
-    environment:
-      name: github-pages
-      url: ${{ steps.deploy.outputs.page_url }}
+    concurrency:
+      group: collect
+      cancel-in-progress: false
     steps:
       - uses: actions/checkout@v4
 
@@ -69,5 +68,16 @@ jobs:
         with:
           path: _site
 
+  deploy:
+    needs: collect
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    concurrency:
+      group: pages
+      cancel-in-progress: true
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
       - id: deploy
         uses: actions/deploy-pages@v4
