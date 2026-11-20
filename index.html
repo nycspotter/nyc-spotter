@@ -6,7 +6,7 @@
 <title>NYC Spotter Board</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;700&family=JetBrains+Mono:wght@400;600&family=Noto+Sans+KR:wght@400;500;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;700&family=JetBrains+Mono:wght@400;600&display=swap">
 <style>
 /* Layout: airport wayfinding signage. Yellow sign strip, today's rare schedule as the main board, supporting lists below. */
 :root {
@@ -24,7 +24,7 @@
   --arr: #1d64c4; --dep: #1a7f4b;
   --live: #b34700; --live-bg: #fff0e0; --star: #c98a00;
   --display: "Barlow Condensed", "Arial Narrow", "Roboto Condensed", sans-serif;
-  --body: "Noto Sans KR", "Malgun Gothic", "Apple SD Gothic Neo", system-ui, sans-serif;
+  --body: -apple-system, "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", system-ui, "Segoe UI", sans-serif;   /* system fonts: no Korean webfont download */
   --mono: "JetBrains Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
   color-scheme: light;
 }
@@ -666,22 +666,39 @@ const addDays = (d, n) => { const t = new Date(d + "T12:00:00Z"); t.setUTCDate(t
 const dowOf = (d) => new Date(d + "T12:00:00Z").getUTCDay();
 const curDate = () => viewDate || data.date;
 
-// published schedule (AeroDataBox) for a date, keyed "JFK|2026-10-03" in data.planned
+// published schedule (AeroDataBox): data.planned_index lists the dates that have a plan file
 let planMode = "rare", planQ = "";
 try { planMode = localStorage.getItem("spot-plan") === "all" ? "all" : "rare"; } catch (e) {}
-function plannedFor(d) {
-  const out = [];
-  let fetched = 0;
-  for (const [k, v] of Object.entries(data.planned || {})) {
-    const [ap, date] = k.split("|");
-    if (date !== d) continue;
-    fetched = Math.max(fetched, v.fetched || 0);
-    for (const f of v.flights || []) {
-      out.push({ ...f, ap, kinds: f.kinds || [], hex: null, status: "expected", source: "schedule",
-                 origin: f.ev === "arr" ? f.other : null, dest: f.ev === "dep" ? f.other : null });
+// Each date's schedule lives in data/plan-YYYY-MM-DD.json and is downloaded only when a view needs it.
+const planCache = {};   // date -> { fetched, flights, loading }
+const planInfo = (d) => (data && data.planned_index || {})[d];
+async function ensurePlan(d) {
+  const info = planInfo(d);
+  const c = planCache[d];
+  if (!info || (c && (c.loading || c.fetched === info.fetched))) return;
+  planCache[d] = { ...(c || {}), loading: true };
+  let flights = c && c.flights;
+  try {
+    const r = await fetch(`data/plan-${d}.json`, { cache: "no-cache" });
+    if (!r.ok) throw new Error(r.status);
+    const j = await r.json();
+    flights = [];
+    for (const [ap, v] of Object.entries(j)) {
+      for (const f of v.flights || []) {
+        flights.push({ ...f, ap, kinds: f.kinds || [], hex: null, status: "expected", source: "schedule",
+                       origin: f.ev === "arr" ? f.other : null, dest: f.ev === "dep" ? f.other : null });
+      }
     }
-  }
-  return { flights: out.sort((a, b) => a.min - b.min), fetched };
+    flights.sort((a, b) => a.min - b.min);
+  } catch (e) { /* keep what we had; retried when the index changes */ }
+  planCache[d] = { fetched: info.fetched, flights: flights || [] };
+  if (curDate() === d) renderToday();
+}
+// flights for a date, or null while the first download is still running (a stale copy is shown while refreshing)
+function loadedPlan(d) {
+  const info = planInfo(d), c = planCache[d];
+  if (!c || c.fetched !== info.fetched) ensurePlan(d);
+  return c && c.flights ? c.flights : null;
 }
 const learnedFor = (d, skipAps) => {
   const dow = dowOf(d);
@@ -694,8 +711,14 @@ const matchesQuery = (s) => !planQ || [s.num, s.cs, s.type, s.model, s.airline, 
 
 function rowsForDate() {
   const d = curDate();
-  const { flights, fetched } = plannedFor(d);
-  const hasPlan = flights.length > 0;
+  const info = planInfo(d);
+  const hasPlan = !!info, fetched = info ? info.fetched : 0;
+  // today's rare-only view is built by the collector, so it needs no schedule download
+  let flights = [];
+  if (hasPlan && (planMode === "all" || d !== data.date)) {
+    flights = loadedPlan(d);
+    if (!flights) return { mode: "plan", hasPlan, fetched, rows: null };
+  }
   if (hasPlan && planMode === "all") {
     // full published schedule; on today, live status (airborne/landed) overrides the plan
     const live = d === data.date ? new Map(data.today.map((s) => [s.ev + "|" + s.ap + "|" + s.cs, s])) : new Map();
@@ -739,6 +762,7 @@ function renderToday() {
   document.querySelectorAll("#plan-mode button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.p === planMode)));
   const note = mode === "future" ? `<div class="mode-note">${T().futureNote}</div>`
     : mode === "plan" ? `<div class="mode-note">${T().planNote(ago(fetched))}</div>` : "";
+  if (all == null) { $("today").innerHTML = note + `<div class="empty">${T().loading}</div>`; return; }
   const rows = all.filter((s) => (filter === "all" || s.ev === filter) && passAir(s));
   if (!rows.length) {
     const empty = all.length ? T().noMatch : mode === "future" ? T().futureEmpty : T().todayEmpty;
@@ -925,15 +949,19 @@ async function load() {
   if (!spots) {
     try { const s = await fetch("spots.json"); if (s.ok) spots = await s.json(); } catch (e) {}
   }
+  // "no-cache" revalidates with the server's ETag: unchanged data comes back as a tiny 304 instead of a full download
+  let changed = false;
   try {
-    const r = await fetch("data/schedule.json?t=" + Date.now());
+    const r = await fetch("data/schedule.json", { cache: "no-cache" });
     if (!r.ok) throw new Error(r.status);
-    data = await r.json();
+    const fresh = await r.json();
+    changed = !data || fresh.updated !== data.updated;
+    data = fresh;
     loadFailed = false;
   } catch (e) {
     loadFailed = !data;
   }
-  renderAll();
+  if (changed || loadFailed) renderAll(); else renderStatus();
 }
 
 $("filters").addEventListener("click", (e) => {
@@ -992,7 +1020,12 @@ $("plan-mode").addEventListener("click", (e) => {
   try { localStorage.setItem("spot-plan", planMode); } catch (err) {}
   renderToday();
 });
-$("plan-q").addEventListener("input", (e) => { planQ = e.target.value.trim().toLowerCase(); renderToday(); });
+// redraw after typing pauses, not on every keystroke (the full schedule is ~1,100 rows)
+let qTimer = null;
+$("plan-q").addEventListener("input", (e) => {
+  clearTimeout(qTimer);
+  qTimer = setTimeout(() => { planQ = e.target.value.trim().toLowerCase(); renderToday(); }, 200);
+});
 
 $("d-prev").addEventListener("click", () => data && setViewDate(addDays(curDate(), -1)));
 $("d-next").addEventListener("click", () => data && setViewDate(addDays(curDate(), 1)));
@@ -1009,7 +1042,7 @@ document.querySelector(".lang").addEventListener("click", (e) => {
 
 renderAll();
 load();
-setInterval(load, 60000);
+setInterval(load, 120000);   // the collector updates every ~10 min, so checking every 2 min is plenty
 setInterval(renderStatus, 15000);
 </script>
 </body>

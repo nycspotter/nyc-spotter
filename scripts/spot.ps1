@@ -690,6 +690,26 @@ foreach ($k in @($state.last.Keys))    { if ($now - [long]$state.last[$k].ts -gt
 
 Write-Data 'state.json'   $state
 Write-Data 'history.json' ([ordered]@{ events = @($events) })
+# Published schedules go into one file per date (plan-YYYY-MM-DD.json, ~180 KB each) so the page only
+# downloads the day it shows; schedule.json keeps just a small index of which dates exist.
+$byDate = @{}
+foreach ($k in @($plan.days.Keys)) {
+  $ap, $date = $k -split '\|'
+  if (-not $byDate.ContainsKey($date)) { $byDate[$date] = [ordered]@{} }
+  $byDate[$date][$ap] = $plan.days[$k]
+}
+$planIndex = [ordered]@{}
+foreach ($date in @($byDate.Keys | Sort-Object)) {
+  Write-Data "plan-$date.json" $byDate[$date]
+  $planIndex[$date] = [ordered]@{
+    airports = @($byDate[$date].Keys)
+    fetched  = [long](@($byDate[$date].Values | ForEach-Object { [long]$_.fetched }) | Measure-Object -Maximum).Maximum
+  }
+}
+foreach ($old in @(Get-ChildItem -Path $dataDir -Filter 'plan-*.json')) {
+  if (-not $byDate.ContainsKey($old.BaseName.Substring(5))) { [IO.File]::Delete($old.FullName) }
+}
+
 Write-Data 'schedule.json' ([ordered]@{
   updated  = $now
   date     = $ny.ToString('yyyy-MM-dd', $inv)
@@ -700,7 +720,7 @@ Write-Data 'schedule.json' ([ordered]@{
   runways  = $runways
   patterns = @($patterns | Sort-Object { [int]$_.min })
   recent   = @($events | Sort-Object { [long]$_.ts } -Descending | Select-Object -First 40)
-  planned  = $plan.days
+  planned_index = $planIndex
   schedule_usage = [ordered]@{ month = $monthKey; calls = [int]$plan.usage[$monthKey]; budget = [int]$sc.monthly_call_budget }
   repo     = "$($env:GITHUB_REPOSITORY)"
   watch    = @($issueWatch)
