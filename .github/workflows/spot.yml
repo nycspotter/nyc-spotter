@@ -23,7 +23,12 @@ jobs:
     concurrency:
       group: collect
       cancel-in-progress: false
+    outputs:
+      started: ${{ steps.clock.outputs.started }}
     steps:
+      - id: clock
+        run: echo "started=$(date +%s)" >> "$GITHUB_OUTPUT"
+
       - uses: actions/checkout@v4
 
       # Restore the previous data (rare sightings log) from the data branch, if it exists.
@@ -72,6 +77,32 @@ jobs:
       - uses: actions/upload-pages-artifact@v3
         with:
           path: _site
+
+  # GitHub's own schedule only fires a few times a day, so each run starts the next one about
+  # 10 minutes after it began. Only one relay ever waits (a newer one cancels an older one), and the
+  # cron trigger above restarts the chain if it ever breaks.
+  relay:
+    needs: collect
+    if: ${{ always() && github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    concurrency:
+      group: relay
+      cancel-in-progress: true
+    permissions:
+      actions: write   # to start the next run
+    steps:
+      - name: Wait, then start the next run
+        env:
+          GH_TOKEN: ${{ github.token }}
+          STARTED: ${{ needs.collect.outputs.started }}
+          INTERVAL: 600
+        run: |
+          now=$(date +%s)
+          start=${STARTED:-$now}
+          wait=$(( INTERVAL - (now - start) ))
+          if [ "$wait" -gt 0 ]; then echo "waiting ${wait}s"; sleep "$wait"; fi
+          gh workflow run spot.yml --repo "$GITHUB_REPOSITORY" --ref main
 
   deploy:
     needs: collect
