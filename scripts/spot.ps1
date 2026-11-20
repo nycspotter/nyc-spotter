@@ -479,7 +479,9 @@ if ($sc -and $env:AERODATABOX_KEY) {
   foreach ($code in @($sc.airports)) {
     $jobs = @()
     foreach ($slot in @($sc.fetch_plan)) {
-      $slotKey = "$code|$todayStr|$($slot.hour)"
+      # optional weekday filter, e.g. fetch the weekend ahead only on Thursday/Friday evenings
+      if ($slot.weekdays -and @($slot.weekdays) -notcontains $ny.DayOfWeek.ToString()) { continue }
+      $slotKey = "$code|$todayStr|$($slot.hour)" + $(if ([int]$slot.day_offset -gt 1) { "|+$($slot.day_offset)" } else { '' })
       $win = if ($slot.window) { "$($slot.window)" } else { 'all' }
       if ($ny.Hour -ge [int]$slot.hour -and -not $plan.slots.ContainsKey($slotKey)) { $jobs += @{ key = $slotKey; offset = [int]$slot.day_offset; window = $win } }
     }
@@ -517,7 +519,12 @@ if ($sc -and $env:AERODATABOX_KEY) {
         if ($newRare.Count) { Send-PlanDigest $code $date $newRare "$($job.key.Split('|')[2])시 업데이트: 새로 생긴" }
       } else {
         $plan.days[$dayKey] = [ordered]@{ fetched = $now; flights = $flights }
-        Send-PlanDigest $code $date $flights $(if ($job.offset -eq 0) { '오늘' } else { '내일' })
+        $label = switch ($job.offset) {
+          0 { '오늘' }
+          1 { '내일' }
+          default { $d = [datetime]::ParseExact($date, 'yyyy-MM-dd', $inv); "$($d.Month)/$($d.Day)($(@('일','월','화','수','목','금','토')[[int]$d.DayOfWeek]))" }
+        }
+        Send-PlanDigest $code $date $flights $label
       }
     }
   }

@@ -18,9 +18,10 @@
     "airports": ["JFK"],
     "fetch_plan": [
       { "hour": 7,  "day_offset": 0 },
-      { "hour": 11, "day_offset": 0, "window": "pm" },
       { "hour": 15, "day_offset": 0, "window": "pm" },
-      { "hour": 20, "day_offset": 1 }
+      { "hour": 20, "day_offset": 1 },
+      { "hour": 20, "day_offset": 2, "weekdays": ["Thursday", "Friday"] },
+      { "hour": 20, "day_offset": 3, "weekdays": ["Thursday"] }
     ],
     "monthly_call_budget": 190,
     "government_airline_pattern": "Amiri|Air Force|Special Flight|Government|Royal Flight|Presidential|Navy|Army"
